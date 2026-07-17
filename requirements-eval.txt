@@ -1,0 +1,5 @@
+# Optional - offline RAGAS evaluation metrics (kg_agentic/evaluation.py).
+# Heavier deps; prefer Python 3.10+. The core stack runs fine without these.
+langchain-groq>=0.2.3
+ragas>=0.2.0
+datasets>=2.19.0

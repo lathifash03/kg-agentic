@@ -1,0 +1,88 @@
+"""Entry point - end-to-end demo of the KG-agentic verification stack.
+
+Wires Phases 1-4 together::
+
+    python -m kg_agent.cli                      # run the default demo query
+    python -m kg_agent.cli --query "..."        # custom query
+    python -m kg_agent.cli --setup              # run Phase 1 + Phase 3 first
+    python -m kg_agent.cli --query "..." --json # machine-readable output
+
+``--setup`` applies the Phase 1 temporal-metadata migration and computes/stores
+Phase 3 trust scores before answering (idempotent; safe to repeat). Without it,
+the demo assumes those have already been run.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+
+from kg_agent.agentic_verifier import AgenticVerifier, VerifiedAnswer
+from kg_agent.config import get_config
+from kg_agent.neo4j_client import Neo4jClient
+from kg_agent.node_trust import compute_and_store
+
+DEFAULT_QUERY = "What is a Robotic Mobile Fulfillment System (RMFS)?"
+
+
+def _print_human(result: VerifiedAnswer) -> None:
+    """Pretty-print a :class:`VerifiedAnswer` for the terminal."""
+    print("\n" + "=" * 72)
+    print(f"QUERY: {result.query}")
+    print("=" * 72)
+    print(f"\nANSWER:\n{result.answer}\n")
+    print("-" * 72)
+    print(f"  trust_score (mean of sources) : {result.trust_score}")
+    print(f"  temporal_validity_status      : {result.temporal_validity_status}")
+    print(f"  faithfulness                  : {result.faithfulness}")
+    print(f"  overall_confidence            : {result.overall_confidence}")
+    print(f"  passed gates                  : {result.passed}")
+    print(f"  retrieval strategy / retries  : {result.strategy} / {result.retries}")
+    print(f"\n  explanation: {result.explanation}")
+    print("\n  sources_used:")
+    if not result.sources_used:
+        print("    (none retrieved)")
+    for s in result.sources_used:
+        flag = "OK " if s["used"] else "DROP"
+        print(
+            f"    [{flag}] {s['name']!r:<30} status={s['temporal_status']:<10} "
+            f"trust={s['trust_score']}"
+        )
+    print("=" * 72 + "\n")
+
+
+def main() -> None:
+    """Run the end-to-end verified-answer demo."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    parser = argparse.ArgumentParser(description="KG-agentic verified-answer demo.")
+    parser.add_argument("--query", type=str, default=DEFAULT_QUERY, help="Question to answer.")
+    parser.add_argument(
+        "--setup",
+        action="store_true",
+        help="Run Phase 1 migration + Phase 3 trust scoring before answering.",
+    )
+    parser.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
+    args = parser.parse_args()
+
+    cfg = get_config()
+    with Neo4jClient.from_config(cfg) as client:
+        if not client.verify_connectivity():
+            raise SystemExit("Could not connect to Neo4j - check kg_agent/config.py")
+
+        if args.setup:
+            logging.getLogger(__name__).info("Running Phase 1 migration + Phase 3 scoring...")
+            client.run_phase1_migration()
+            compute_and_store(client, cfg)
+
+        verifier = AgenticVerifier(client, cfg)
+        result = verifier.verify(args.query)
+
+        if args.json:
+            print(json.dumps(result.to_dict(), indent=2, default=str))
+        else:
+            _print_human(result)
+
+
+if __name__ == "__main__":
+    main()

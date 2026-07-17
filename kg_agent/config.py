@@ -1,0 +1,301 @@
+"""Centralised, environment-overridable configuration for the KG-agentic layer.
+
+Every threshold, weight and connection parameter used across Phases 1-4 lives
+here so that *nothing* is hard-coded inside the logic modules. Values are read
+from environment variables (a local ``.env`` file is loaded automatically when
+``python-dotenv`` is installed) and fall back to sensible defaults that match
+the live Neo4j instance shipped with this repository.
+
+Usage
+-----
+    from kg_agent.config import get_config
+
+    cfg = get_config()                  # read once from the environment
+    cfg.temporal_validity.outdated_threshold_days = 7   # or override in code
+
+The defaults below were verified against the running database:
+the entity nodes carry the label ``__Entity__`` and expose ``id`` / ``name``
+properties, while the structural plumbing relationships are ``MENTIONS``,
+``NEXT`` and ``PART_OF``.
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
+
+try:  # optional dependency - never required for the module to import
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except Exception:  # pragma: no cover - dotenv is a convenience only
+    pass
+
+
+# --------------------------------------------------------------------------- #
+# Small typed environment readers
+# --------------------------------------------------------------------------- #
+def _env_str(key: str, default: str) -> str:
+    """Return the string value of ``key`` from the environment or ``default``."""
+    value = os.getenv(key)
+    return value if value not in (None, "") else default
+
+
+def _env_int(key: str, default: int) -> int:
+    """Return the int value of ``key`` from the environment or ``default``."""
+    value = os.getenv(key)
+    return int(value) if value not in (None, "") else default
+
+
+def _env_float(key: str, default: float) -> float:
+    """Return the float value of ``key`` from the environment or ``default``."""
+    value = os.getenv(key)
+    return float(value) if value not in (None, "") else default
+
+
+def _env_bool(key: str, default: bool) -> bool:
+    """Return the bool value of ``key`` (``1/true/yes/on``) or ``default``."""
+    value = os.getenv(key)
+    if value in (None, ""):
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# --------------------------------------------------------------------------- #
+# Connection
+# --------------------------------------------------------------------------- #
+@dataclass
+class Neo4jConfig:
+    """Connection parameters for the backing Neo4j database."""
+
+    uri: str = field(default_factory=lambda: _env_str("NEO4J_URI", "bolt://localhost:7687"))
+    username: str = field(default_factory=lambda: _env_str("NEO4J_USERNAME", "neo4j"))
+    password: str = field(default_factory=lambda: _env_str("NEO4J_PASSWORD", "password123"))
+    database: str = field(default_factory=lambda: _env_str("NEO4J_DATABASE", "neo4j"))
+
+
+# --------------------------------------------------------------------------- #
+# Graph schema mapping (how *this* graph names things)
+# --------------------------------------------------------------------------- #
+@dataclass
+class GraphSchemaConfig:
+    """Maps abstract concepts ("an entity", "its name") onto the real labels
+    and property keys used by the DylanTartarini1996 pipeline.
+
+    Keeping these configurable means the agentic layer can be pointed at a
+    differently-shaped graph without touching any query logic.
+    """
+
+    entity_label: str = field(default_factory=lambda: _env_str("KG_ENTITY_LABEL", "__Entity__"))
+    entity_name_property: str = field(default_factory=lambda: _env_str("KG_ENTITY_NAME_PROP", "name"))
+    entity_id_property: str = field(default_factory=lambda: _env_str("KG_ENTITY_ID_PROP", "id"))
+
+    # Relationship type used to model "node A was superseded by node B".
+    supersedes_relationship: str = field(
+        default_factory=lambda: _env_str("KG_SUPERSEDES_REL", "SUPERSEDED_BY")
+    )
+
+    # Plumbing relationships that must NOT receive temporal validity metadata.
+    structural_relationship_types: List[str] = field(
+        default_factory=lambda: _env_str(
+            "KG_STRUCTURAL_RELS", "MENTIONS,NEXT,PART_OF"
+        ).split(",")
+    )
+
+    # When True, temporal metadata is only written to relationships whose both
+    # endpoints are entities (the semantic graph). When False, every
+    # non-structural relationship is annotated.
+    temporal_relationships_entity_only: bool = field(
+        default_factory=lambda: _env_bool("KG_TEMPORAL_RELS_ENTITY_ONLY", True)
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Phase 1 - default values written by the temporal-metadata migration
+# --------------------------------------------------------------------------- #
+@dataclass
+class TemporalDefaults:
+    """Default property values stamped onto nodes/relationships by Phase 1.
+
+    These are only applied where a value is *missing*, so re-running the
+    migration is idempotent and never clobbers curated data.
+    """
+
+    # Entity nodes in this graph were produced by the LLM extraction pipeline,
+    # so the honest default provenance is "auto_extracted" (lowest trust).
+    default_source_type: str = field(
+        default_factory=lambda: _env_str("KG_DEFAULT_SOURCE_TYPE", "auto_extracted")
+    )
+    default_confidence_score: float = field(
+        default_factory=lambda: _env_float("KG_DEFAULT_CONFIDENCE", 0.5)
+    )
+    default_created_by: str = field(
+        default_factory=lambda: _env_str("KG_DEFAULT_CREATED_BY", "graph_miner")
+    )
+    default_relationship_confidence: float = field(
+        default_factory=lambda: _env_float("KG_DEFAULT_REL_CONFIDENCE", 0.5)
+    )
+    # Stamp created_at/updated_at with the migration time. The timestamps are
+    # honest ("first seen by the temporal layer at ..."); set to False to leave
+    # them null and populate later from a real provenance source.
+    set_created_at_to_now: bool = field(
+        default_factory=lambda: _env_bool("KG_SET_CREATED_AT_NOW", True)
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Phase 2 - temporal validity check
+# --------------------------------------------------------------------------- #
+@dataclass
+class TemporalValidityConfig:
+    """Thresholds governing the VALID / OUTDATED / SUPERSEDED / CONFLICTED check."""
+
+    # A node is OUTDATED once its freshness reference is older than this.
+    outdated_threshold_days: int = field(
+        default_factory=lambda: _env_int("KG_OUTDATED_THRESHOLD_DAYS", 30)
+    )
+    # Two entities sharing a (case-insensitive) name are treated as CONFLICTED.
+    # When True, a name clash only counts as a conflict if the `description`
+    # values also differ (a genuine contradiction rather than a duplicate).
+    conflict_requires_different_description: bool = field(
+        default_factory=lambda: _env_bool("KG_CONFLICT_REQUIRES_DIFF_DESC", False)
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Phase 3 - node trust scoring
+# --------------------------------------------------------------------------- #
+@dataclass
+class TrustScoringConfig:
+    """Weights and decay parameters for ``trust = confidence x source x recency``."""
+
+    source_weights: Dict[str, float] = field(
+        default_factory=lambda: {
+            "paper": 1.0,
+            "meeting": 0.8,
+            "discussion": 0.6,
+            "auto_extracted": 0.4,
+        }
+    )
+    # Weight applied when a node's source_type is unknown / unmapped.
+    default_source_weight: float = field(
+        default_factory=lambda: _env_float("KG_DEFAULT_SOURCE_WEIGHT", 0.4)
+    )
+    # Exponential decay: recency_factor = 0.5 ** (age_days / half_life_days).
+    recency_half_life_days: float = field(
+        default_factory=lambda: _env_float("KG_RECENCY_HALF_LIFE_DAYS", 90.0)
+    )
+    # Recency never decays below this floor, so old-but-valid facts keep signal.
+    recency_floor: float = field(
+        default_factory=lambda: _env_float("KG_RECENCY_FLOOR", 0.1)
+    )
+    # Property name under which the computed score is written back to each node.
+    trust_score_property: str = field(
+        default_factory=lambda: _env_str("KG_TRUST_SCORE_PROP", "trust_score")
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Phase 4 - LLM + agentic verifier
+# --------------------------------------------------------------------------- #
+@dataclass
+class LLMConfig:
+    """LLM settings for answer generation + the faithfulness check (Phase 4).
+
+    ``provider`` selects the client: ``"groq"`` (default, cloud) or ``"ollama"``
+    (local, e.g. Nous Hermes 3 via the same Ollama server used for embeddings).
+    """
+
+    provider: str = field(default_factory=lambda: _env_str("KG_LLM_PROVIDER", "groq"))
+    # For Groq: llama3-70b-8192 is being retired; llama-3.3-70b-versatile is the
+    # current 70B model. For Ollama the client defaults to "hermes3:8b" unless
+    # KG_LLM_MODEL is set. Override via KG_LLM_MODEL either way.
+    model: str = field(default_factory=lambda: _env_str("KG_LLM_MODEL", "llama-3.3-70b-versatile"))
+    api_key: Optional[str] = field(default_factory=lambda: os.getenv("GROQ_API_KEY"))
+    temperature: float = field(default_factory=lambda: _env_float("KG_LLM_TEMPERATURE", 0.0))
+    # Shared output-length cap applied identically to every real provider so a
+    # benchmark measures the model, not differing default token budgets.
+    max_tokens: int = field(default_factory=lambda: _env_int("KG_LLM_MAX_TOKENS", 512))
+    # Per-request timeout (seconds). Local CPU inference of a 7-8B model is slow,
+    # so this defaults high; lower it for fast cloud providers if you prefer.
+    request_timeout: int = field(default_factory=lambda: _env_int("KG_LLM_TIMEOUT", 600))
+
+
+@dataclass
+class RetrievalConfig:
+    """Settings for the default KG-RAG retriever used by the Phase 4 demo.
+
+    The retriever is hybrid: it uses Neo4j vector search when the embedding
+    model is reachable, and falls back to keyword search otherwise.
+    """
+
+    top_k: int = field(default_factory=lambda: _env_int("KG_RETRIEVAL_TOP_K", 5))
+    # Cap on entities surfaced as sources, ranked by how many retrieved chunks
+    # mention them. Stops broad/bibliography chunks from flooding sources_used.
+    max_sources: int = field(default_factory=lambda: _env_int("KG_MAX_SOURCES", 15))
+    vector_index_name: str = field(default_factory=lambda: _env_str("KG_VECTOR_INDEX", "vector"))
+    # Must match the model the chunks were embedded with (mxbai-embed-large here).
+    embed_model: str = field(default_factory=lambda: _env_str("KG_EMBED_MODEL", "mxbai-embed-large"))
+    ollama_url: str = field(default_factory=lambda: _env_str("OLLAMA_URL", "http://localhost:11434"))
+    prefer_vector: bool = field(default_factory=lambda: _env_bool("KG_PREFER_VECTOR", True))
+
+
+@dataclass
+class VerifierConfig:
+    """Gates, retry policy and confidence blend for the Phase 4 loop."""
+
+    min_trust_score: float = field(default_factory=lambda: _env_float("KG_MIN_TRUST_SCORE", 0.4))
+    min_faithfulness: float = field(default_factory=lambda: _env_float("KG_MIN_FAITHFULNESS", 0.7))
+    max_retries: int = field(default_factory=lambda: _env_int("KG_MAX_RETRIES", 1))
+    # Statuses that disqualify a retrieved node from being treated as reliable.
+    failing_statuses: List[str] = field(
+        default_factory=lambda: _env_str(
+            "KG_FAILING_STATUSES", "OUTDATED,SUPERSEDED,CONFLICTED"
+        ).split(",")
+    )
+    # Retrieval strategies tried in order across retries. Supported values:
+    # "vector", "keyword", "expanded" (higher-k vector/keyword).
+    retry_strategies: List[str] = field(
+        default_factory=lambda: _env_str("KG_RETRY_STRATEGIES", "vector,keyword,expanded").split(",")
+    )
+    # Overall confidence = weighted blend of these three signals (auto-normalised).
+    weight_faithfulness: float = field(default_factory=lambda: _env_float("KG_W_FAITHFULNESS", 0.5))
+    weight_trust: float = field(default_factory=lambda: _env_float("KG_W_TRUST", 0.2))
+    weight_validity: float = field(default_factory=lambda: _env_float("KG_W_VALIDITY", 0.3))
+
+
+# --------------------------------------------------------------------------- #
+# Root config
+# --------------------------------------------------------------------------- #
+@dataclass
+class Config:
+    """Aggregate configuration object passed through every phase."""
+
+    neo4j: Neo4jConfig = field(default_factory=Neo4jConfig)
+    schema: GraphSchemaConfig = field(default_factory=GraphSchemaConfig)
+    temporal_defaults: TemporalDefaults = field(default_factory=TemporalDefaults)
+    temporal_validity: TemporalValidityConfig = field(default_factory=TemporalValidityConfig)
+    trust: TrustScoringConfig = field(default_factory=TrustScoringConfig)
+    llm: LLMConfig = field(default_factory=LLMConfig)
+    retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
+    verifier: VerifierConfig = field(default_factory=VerifierConfig)
+
+
+def get_config() -> Config:
+    """Build a :class:`Config` from the current environment.
+
+    Returns
+    -------
+    Config
+        A fully-populated configuration object. Call this once near the entry
+        point and thread the result through the other modules.
+    """
+    return Config()
+
+
+if __name__ == "__main__":  # pragma: no cover - manual inspection helper
+    import json
+    from dataclasses import asdict
+
+    print(json.dumps(asdict(get_config()), indent=2, default=str))

@@ -199,19 +199,26 @@ class TrustScoringConfig:
 # --------------------------------------------------------------------------- #
 # Phase 4 - LLM + agentic verifier
 # --------------------------------------------------------------------------- #
+# Default model id for the Groq provider. Exported because the Ollama clients
+# need to recognise it: it is a *Groq* model name, so seeing it while talking to
+# an Ollama server means KG_LLM_MODEL was never set for this provider.
+DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+
+
 @dataclass
 class LLMConfig:
     """LLM settings for answer generation + the faithfulness check (Phase 4).
 
     ``provider`` selects the client: ``"groq"`` (default, cloud) or ``"ollama"``
-    (local, e.g. Nous Hermes 3 via the same Ollama server used for embeddings).
+    (local, any model served by the Ollama instance at ``OLLAMA_URL``).
     """
 
     provider: str = field(default_factory=lambda: _env_str("KG_LLM_PROVIDER", "groq"))
     # For Groq: llama3-70b-8192 is being retired; llama-3.3-70b-versatile is the
-    # current 70B model. For Ollama the client defaults to "hermes3:8b" unless
-    # KG_LLM_MODEL is set. Override via KG_LLM_MODEL either way.
-    model: str = field(default_factory=lambda: _env_str("KG_LLM_MODEL", "llama-3.3-70b-versatile"))
+    # current 70B model. The Ollama provider has no default model - set
+    # KG_LLM_MODEL to a model that server actually serves (the clients raise a
+    # message listing the available ones if you don't).
+    model: str = field(default_factory=lambda: _env_str("KG_LLM_MODEL", DEFAULT_GROQ_MODEL))
     api_key: Optional[str] = field(default_factory=lambda: os.getenv("GROQ_API_KEY"))
     temperature: float = field(default_factory=lambda: _env_float("KG_LLM_TEMPERATURE", 0.0))
     # Shared output-length cap applied identically to every real provider so a
@@ -220,6 +227,38 @@ class LLMConfig:
     # Per-request timeout (seconds). Local CPU inference of a 7-8B model is slow,
     # so this defaults high; lower it for fast cloud providers if you prefer.
     request_timeout: int = field(default_factory=lambda: _env_int("KG_LLM_TIMEOUT", 600))
+
+
+@dataclass
+class JudgeConfig:
+    """Optional *separate* LLM for the faithfulness judge (Phase 4).
+
+    Some models never emit a bounded answer suitable for a JSON verdict - e.g.
+    thinking-only models that reason past any token budget and leave
+    ``message.content`` empty. This lets the faithfulness check run on a plain
+    instruct model while the main provider still handles tool-calling and answer
+    generation.
+
+    Backward compatible: with ``provider=""`` (the default) no separate judge is
+    built and the faithfulness check reuses the main LLM client, exactly as
+    before. Set ``KG_JUDGE_PROVIDER`` (``ollama`` | ``groq`` | ``mock``) plus
+    ``KG_JUDGE_MODEL`` to enable it; ``KG_JUDGE_OLLAMA_URL`` defaults to the same
+    ``OLLAMA_URL`` as everything else, so a local instruct model can judge while
+    the main model lives on a remote endpoint.
+    """
+
+    provider: str = field(default_factory=lambda: _env_str("KG_JUDGE_PROVIDER", ""))
+    model: str = field(default_factory=lambda: _env_str("KG_JUDGE_MODEL", ""))
+    ollama_url: str = field(
+        default_factory=lambda: _env_str(
+            "KG_JUDGE_OLLAMA_URL", _env_str("OLLAMA_URL", "http://localhost:11434")
+        )
+    )
+
+    @property
+    def enabled(self) -> bool:
+        """True when a separate judge client should be built."""
+        return bool(self.provider.strip())
 
 
 @dataclass
@@ -266,6 +305,33 @@ class VerifierConfig:
 
 
 # --------------------------------------------------------------------------- #
+# Phase 5 - native tool-calling orchestrator
+# --------------------------------------------------------------------------- #
+@dataclass
+class OrchestratorConfig:
+    """Settings for the LLM-driven tool-selection layer.
+
+    The orchestrator lets a tool-calling model pick *which* registry tool to
+    run; it never replaces the verification gates inside
+    :meth:`AgenticVerifier.verify`. It is opt-in: with ``mode="off"`` (the
+    default) every existing code path behaves exactly as before.
+    """
+
+    # "native" -> route through the Ollama tool-calling loop; "off" -> disabled.
+    mode: str = field(default_factory=lambda: _env_str("KG_ORCHESTRATOR", "off"))
+    # Hard ceiling on executed tool calls per request, counted per individual
+    # call (a single assistant turn may request several in parallel).
+    max_tool_calls: int = field(
+        default_factory=lambda: _env_int("KG_ORCHESTRATOR_MAX_CALLS", 4)
+    )
+
+    @property
+    def enabled(self) -> bool:
+        """True when the orchestrator should handle queries."""
+        return self.mode.strip().lower() == "native"
+
+
+# --------------------------------------------------------------------------- #
 # Root config
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -278,8 +344,10 @@ class Config:
     temporal_validity: TemporalValidityConfig = field(default_factory=TemporalValidityConfig)
     trust: TrustScoringConfig = field(default_factory=TrustScoringConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
+    judge: JudgeConfig = field(default_factory=JudgeConfig)
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     verifier: VerifierConfig = field(default_factory=VerifierConfig)
+    orchestrator: OrchestratorConfig = field(default_factory=OrchestratorConfig)
 
 
 def get_config() -> Config:

@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import socket
 import urllib.error
@@ -34,7 +33,7 @@ import urllib.request
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Protocol
 
-from kg_agent.config import Config, get_config
+from kg_agent.config import DEFAULT_GROQ_MODEL, Config, get_config
 from kg_agent.neo4j_client import Neo4jClient
 from kg_agent.node_trust import score_entities, summarise_scores
 from kg_agent.temporal_validity import (
@@ -63,14 +62,14 @@ class LLMClient(Protocol):
 class GroqLLMClient:
     """Groq-backed LLM client (used when ``GROQ_API_KEY`` is configured)."""
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, *, model: Optional[str] = None) -> None:
         from groq import Groq  # imported lazily so the dep is optional
 
         self._client = Groq(api_key=config.llm.api_key)
-        self._model = config.llm.model
+        self._model = model or config.llm.model
         self._temperature = config.llm.temperature
         self._max_tokens = config.llm.max_tokens
-        self.name = f"groq:{config.llm.model}"
+        self.name = f"groq:{self._model}"
 
     def complete(self, system: str, user: str) -> str:
         """Call Groq chat completions and return the assistant message text."""
@@ -86,19 +85,63 @@ class GroqLLMClient:
         return resp.choices[0].message.content or ""
 
 
+def list_ollama_models(ollama_url: str, timeout: int = 5) -> List[str]:
+    """Return the model names served by an Ollama instance, or ``[]``.
+
+    Used only to make error messages actionable, so every failure mode
+    (server down, timeout, unexpected payload) degrades to an empty list
+    rather than raising.
+    """
+    try:
+        with urllib.request.urlopen(f"{ollama_url}/api/tags", timeout=timeout) as resp:
+            data = json.loads(resp.read().decode())
+    except Exception:  # pragma: no cover - purely advisory
+        return []
+    return sorted(m["name"] for m in data.get("models", []) if m.get("name"))
+
+
+def resolve_ollama_model(config: Config) -> str:
+    """Return the Ollama model id to use, or raise a message that names the fix.
+
+    ``KG_LLM_MODEL`` defaults to a *Groq* model id, so if that value is still in
+    place while we are pointed at an Ollama server, the model was never
+    configured for this provider. Rather than silently substituting some model
+    that may not be pulled - which surfaces later as a confusing HTTP 404 - fail
+    immediately and list what the server actually serves.
+    """
+    model = (config.llm.model or "").strip()
+    if model and model != DEFAULT_GROQ_MODEL:
+        return model
+
+    url = config.retrieval.ollama_url
+    available = list_ollama_models(url)
+    if available:
+        hint = f"Models available at {url}: {', '.join(available)}."
+    else:
+        hint = f"Could not reach {url}/api/tags to list the available models."
+    raise RuntimeError(
+        "KG_LLM_MODEL is not set for the Ollama provider (it still holds the "
+        f"Groq default {DEFAULT_GROQ_MODEL!r}). Set it to a model served by "
+        f"your Ollama instance. {hint}"
+    )
+
+
 class OllamaLLMClient:
-    """Local Ollama chat client (e.g. Nous Hermes 3) via ``POST /api/chat``.
+    """Local Ollama chat client via ``POST /api/chat``.
 
     Reuses the same Ollama server already configured for embeddings
     (``config.retrieval.ollama_url``) rather than hardcoding a URL. Model,
     temperature and max-tokens all come from config.
     """
 
-    def __init__(self, config: Config) -> None:
-        self._url = f"{config.retrieval.ollama_url}/api/chat"
-        # Model comes from KG_LLM_MODEL; when unset, default to Nous Hermes 3
-        # (8B) for the Ollama provider instead of the Groq default model id.
-        self._model = config.llm.model if os.getenv("KG_LLM_MODEL") else "hermes3:8b"
+    def __init__(
+        self, config: Config, *, model: Optional[str] = None, ollama_url: Optional[str] = None
+    ) -> None:
+        # Explicit model/url let this client be reused for a separate judge on a
+        # different model or endpoint; otherwise fall back to the main config.
+        url = ollama_url or config.retrieval.ollama_url
+        self._url = f"{url}/api/chat"
+        self._model = model or resolve_ollama_model(config)
         self._temperature = config.llm.temperature
         self._max_tokens = config.llm.max_tokens
         self._timeout = config.llm.request_timeout
@@ -192,7 +235,8 @@ class MockLLMClient:
 def get_llm_client(config: Config) -> LLMClient:
     """Select the LLM client from config.
 
-    - ``provider="ollama"`` -> :class:`OllamaLLMClient` (local, e.g. Nous Hermes 3).
+    - ``provider="ollama"`` -> :class:`OllamaLLMClient` (local; requires
+      ``KG_LLM_MODEL``).
     - ``provider="groq"`` with an API key -> :class:`GroqLLMClient`.
     - otherwise -> deterministic :class:`MockLLMClient` (offline).
 
@@ -215,6 +259,49 @@ def get_llm_client(config: Config) -> LLMClient:
     else:
         logger.warning("Unknown KG_LLM_PROVIDER=%r - using deterministic MockLLMClient.", provider)
     return MockLLMClient()
+
+
+def get_judge_client(config: Config) -> Optional[LLMClient]:
+    """Build the *separate* faithfulness-judge client, or ``None``.
+
+    Returns ``None`` when no judge is configured (``KG_JUDGE_PROVIDER`` empty),
+    in which case the verifier reuses its main LLM client - the original
+    behaviour. Otherwise builds a client for the judge provider/model, which may
+    differ from the main one (e.g. a plain instruct model to judge answers that
+    a thinking-only main model generates).
+    """
+    judge = config.judge
+    if not judge.enabled:
+        return None
+
+    provider = judge.provider.strip().lower()
+    if provider == "mock":
+        logger.info("Faithfulness judge: deterministic MockLLMClient.")
+        return MockLLMClient()
+    if provider == "ollama":
+        if not judge.model:
+            raise RuntimeError(
+                "KG_JUDGE_PROVIDER=ollama requires KG_JUDGE_MODEL to be set."
+            )
+        client = OllamaLLMClient(config, model=judge.model, ollama_url=judge.ollama_url)
+        logger.info("Faithfulness judge: %s (%s)", client.name, judge.ollama_url)
+        return client
+    if provider == "groq":
+        if not judge.model:
+            raise RuntimeError(
+                "KG_JUDGE_PROVIDER=groq requires KG_JUDGE_MODEL to be set."
+            )
+        if not config.llm.api_key:
+            raise RuntimeError(
+                "KG_JUDGE_PROVIDER=groq requires GROQ_API_KEY to be set."
+            )
+        client = GroqLLMClient(config, model=judge.model)
+        logger.info("Faithfulness judge: %s", client.name)
+        return client
+    raise RuntimeError(
+        f"Unknown KG_JUDGE_PROVIDER={judge.provider!r} "
+        "(expected 'ollama', 'groq' or 'mock')."
+    )
 
 
 def _split_answer_context(user: str) -> tuple:
@@ -500,10 +587,15 @@ class AgenticVerifier:
         client: Neo4jClient,
         config: Optional[Config] = None,
         llm: Optional[LLMClient] = None,
+        judge: Optional[LLMClient] = None,
     ) -> None:
         self.client = client
         self.config = config or client.config
         self.llm = llm or get_llm_client(self.config)
+        # A separate faithfulness judge when configured (e.g. a plain instruct
+        # model to grade answers a thinking-only main model produces); otherwise
+        # the judge is the main client, exactly as before.
+        self.judge = judge or get_judge_client(self.config) or self.llm
 
     # -- LLM steps -------------------------------------------------------- #
     def _generate_answer(self, query: str, context: str) -> str:
@@ -516,7 +608,7 @@ class AgenticVerifier:
     def _check_faithfulness(self, answer: str, context: str) -> Dict[str, Any]:
         """Run the Step 3 faithfulness check, returning a parsed result dict."""
         user = f"ANSWER: {answer}\n\nSOURCES: {context}"
-        raw = self.llm.complete(_FAITHFULNESS_SYSTEM, user)
+        raw = self.judge.complete(_FAITHFULNESS_SYSTEM, user)
         return _parse_faithfulness(raw)
 
     # -- aggregation helpers --------------------------------------------- #

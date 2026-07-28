@@ -6,10 +6,16 @@ Wires Phases 1-4 together::
     python -m kg_agent.cli --query "..."        # custom query
     python -m kg_agent.cli --setup              # run Phase 1 + Phase 3 first
     python -m kg_agent.cli --query "..." --json # machine-readable output
+    python -m kg_agent.cli --query "..." --agentic  # let the LLM pick the tool
 
 ``--setup`` applies the Phase 1 temporal-metadata migration and computes/stores
 Phase 3 trust scores before answering (idempotent; safe to repeat). Without it,
 the demo assumes those have already been run.
+
+``--agentic`` (or ``KG_ORCHESTRATOR=native``) routes the query through the
+Phase 5 tool-calling orchestrator, which asks the LLM which tool to use instead
+of always calling the verifier. The verification gates are unchanged either
+way; with ``--json`` the tool-call trace is included in the output.
 """
 
 from __future__ import annotations
@@ -22,6 +28,7 @@ from kg_agent.agentic_verifier import AgenticVerifier, VerifiedAnswer
 from kg_agent.config import get_config
 from kg_agent.neo4j_client import Neo4jClient
 from kg_agent.node_trust import compute_and_store
+from kg_agent.orchestrator import OrchestrationResult, run_orchestrated
 
 DEFAULT_QUERY = "What is a Robotic Mobile Fulfillment System (RMFS)?"
 
@@ -52,6 +59,44 @@ def _print_human(result: VerifiedAnswer) -> None:
     print("=" * 72 + "\n")
 
 
+def _print_orchestration(result: OrchestrationResult) -> None:
+    """Pretty-print an :class:`OrchestrationResult` for the terminal."""
+    print("\n" + "=" * 72)
+    print(f"QUERY: {result.query}")
+    print(f"MODEL: {result.model}   (agentic tool selection)")
+    print("=" * 72)
+    print(f"\nRESPONSE:\n{result.response}\n")
+    print("-" * 72)
+    print("  TOOL-CALL TRACE:")
+    if not result.trace:
+        print("    (no steps recorded)")
+    for entry in result.trace:
+        status = "REJECTED" if entry["validation_error"] else "ok"
+        print(f"    [step {entry['step']}] {entry['tool_name']!r} -> {status}")
+        print(f"        arguments: {json.dumps(entry['arguments'], default=str)}")
+        if entry["validation_error"]:
+            print(f"        validation_error: {entry['validation_error']}")
+        else:
+            preview = json.dumps(entry["result_or_error"], default=str)
+            print(f"        result: {preview[:200]}")
+    print(f"\n  tools_used     : {result.tools_used or '(none - answer NOT verified)'}")
+    print(f"  stopped_reason : {result.stopped_reason}")
+    print(f"  ok             : {result.ok}")
+
+    if result.verified_answer:
+        va = result.verified_answer
+        print("\n  VERIFICATION GATES (from AgenticVerifier, unmodified):")
+        print(f"    trust_score              : {va.get('trust_score')}")
+        print(f"    temporal_validity_status : {va.get('temporal_validity_status')}")
+        print(f"    faithfulness             : {va.get('faithfulness')}")
+        print(f"    overall_confidence       : {va.get('overall_confidence')}")
+        print(f"    passed gates             : {va.get('passed')}")
+        print(f"    disclaimer               : {va.get('disclaimer') or '(none)'}")
+    else:
+        print("\n  (no verification result - the run did not end in answer_question)")
+    print("=" * 72 + "\n")
+
+
 def main() -> None:
     """Run the end-to-end verified-answer demo."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -63,6 +108,12 @@ def main() -> None:
         help="Run Phase 1 migration + Phase 3 trust scoring before answering.",
     )
     parser.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
+    parser.add_argument(
+        "--agentic",
+        action="store_true",
+        help="Let the LLM choose the tool via the Phase 5 orchestrator "
+        "(same as KG_ORCHESTRATOR=native). Verification gates are unchanged.",
+    )
     args = parser.parse_args()
 
     cfg = get_config()
@@ -74,6 +125,14 @@ def main() -> None:
             logging.getLogger(__name__).info("Running Phase 1 migration + Phase 3 scoring...")
             client.run_phase1_migration()
             compute_and_store(client, cfg)
+
+        if args.agentic or cfg.orchestrator.enabled:
+            orchestrated = run_orchestrated(client, cfg, args.query)
+            if args.json:
+                print(json.dumps(orchestrated.to_dict(), indent=2, default=str))
+            else:
+                _print_orchestration(orchestrated)
+            return
 
         verifier = AgenticVerifier(client, cfg)
         result = verifier.verify(args.query)

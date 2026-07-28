@@ -97,28 +97,56 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+_TIMESTAMP_FIELDS = ("validated_at", "updated_at", "created_at")
+
+
 def freshness_reference(entity: Dict[str, Any]) -> Optional[datetime]:
     """Return the timestamp used to judge a node's freshness.
 
     The most recent of ``validated_at``, ``updated_at`` and ``created_at`` is
     used, so re-validating or updating a node refreshes it.
 
+    A timestamp property that is *absent* (or null) is correct to skip: the node
+    is simply treated as timeless (VALID by default). But a property that is
+    *present with the wrong type* - e.g. an ISO string instead of a real Neo4j
+    temporal value, which the driver would hand back as ``str`` - is different:
+    silently skipping it makes a node that carries a real (mis-stored) timestamp
+    look timeless, hiding a data problem. Those are logged as an explicit
+    warning naming the node, field, value and actual type, so a schema mismatch
+    in an upstream pipeline surfaces instead of passing unnoticed.
+
     Parameters
     ----------
     entity
-        A normalised entity dict (datetimes already converted to Python).
+        A normalised entity dict (Neo4j temporal types already converted to
+        Python ``datetime`` by the driver/read layer).
 
     Returns
     -------
     Optional[datetime]
-        The reference timestamp, or ``None`` if the node has no timestamps.
+        The reference timestamp, or ``None`` if the node has no usable
+        timestamp.
     """
-    candidates = [
-        entity.get("validated_at"),
-        entity.get("updated_at"),
-        entity.get("created_at"),
-    ]
-    timestamps = [t for t in candidates if isinstance(t, datetime)]
+    timestamps: List[datetime] = []
+    for name in _TIMESTAMP_FIELDS:
+        value = entity.get(name)
+        if value is None:
+            continue  # genuinely absent/null - treat as timeless, no warning
+        if isinstance(value, datetime):
+            timestamps.append(value)
+            continue
+        # Present but not a datetime after normalisation: don't drop it silently.
+        node_id = entity.get("name") or entity.get("id") or entity.get("element_id") or "<unknown>"
+        logger.warning(
+            "Node %r has %s=%r of type %s, not a datetime after driver "
+            "normalisation; ignoring it for temporal freshness (node would be "
+            "treated as timeless). Store timestamps as a Neo4j temporal type "
+            "(e.g. datetime()), not an ISO string.",
+            node_id,
+            name,
+            value,
+            type(value).__name__,
+        )
     return max(timestamps) if timestamps else None
 
 

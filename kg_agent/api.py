@@ -12,7 +12,9 @@ Endpoint
 GET  /health          -> status koneksi Neo4j
 GET  /tools           -> daftar tool + JSON schema (untuk function-calling/MCP)
 POST /tools/{name}    -> panggil tool dengan arguments JSON
-POST /query           -> shortcut untuk tool answer_question
+POST /query           -> shortcut untuk tool answer_question; dengan
+                         ``{"agentic": true}`` (atau KG_ORCHESTRATOR=native)
+                         LLM yang memilih tool dan respons memuat ``tool_trace``
 POST /setup           -> Phase 1 migration + Phase 3 trust scoring (idempotent)
 
 Untuk menunjuk KG milik teman: cukup ganti NEO4J_URI / NEO4J_USERNAME /
@@ -32,6 +34,7 @@ from pydantic import BaseModel, Field
 from kg_agent.config import get_config
 from kg_agent.neo4j_client import Neo4jClient
 from kg_agent.node_trust import compute_and_store, summarise_scores
+from kg_agent.orchestrator import run_orchestrated
 from kg_agent.tools import call_tool, tool_specs
 
 logger = logging.getLogger(__name__)
@@ -65,6 +68,11 @@ app = FastAPI(
 # --------------------------------------------------------------------------- #
 class QueryRequest(BaseModel):
     query: str = Field(..., min_length=1, description="Pertanyaan untuk KG.")
+    agentic: bool = Field(
+        default=False,
+        description="Bila true, LLM yang memilih tool lewat orchestrator "
+        "(Phase 5) dan respons memuat `tool_trace`. Gate verifikasi tetap sama.",
+    )
 
 
 class ToolCallRequest(BaseModel):
@@ -98,9 +106,32 @@ def invoke_tool(name: str, body: ToolCallRequest) -> Dict[str, Any]:
 
 @app.post("/query")
 def query(body: QueryRequest) -> Dict[str, Any]:
-    return call_tool(
-        "answer_question", app.state.client, app.state.cfg, {"query": body.query}
-    )
+    cfg = app.state.cfg
+    if not (body.agentic or cfg.orchestrator.enabled):
+        return call_tool("answer_question", app.state.client, cfg, {"query": body.query})
+
+    try:
+        result = run_orchestrated(app.state.client, cfg, body.query)
+    except RuntimeError as exc:  # unreachable Ollama / KG_LLM_MODEL not set
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    common = {
+        "tool_trace": result.trace,
+        "tools_used": result.tools_used,
+        "stopped_reason": result.stopped_reason,
+        "ok": result.ok,
+        "model": result.model,
+    }
+    # When the run ended in answer_question, keep the response shape identical to
+    # the non-agentic path (the full VerifiedAnswer) and just add the trace.
+    if result.verified_answer:
+        return {**result.verified_answer, **common}
+    return {
+        "query": result.query,
+        "response": result.response,
+        "tool_results": result.tool_results,
+        **common,
+    }
 
 
 @app.post("/setup")

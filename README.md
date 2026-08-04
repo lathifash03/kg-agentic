@@ -173,6 +173,26 @@ KG_STRUCTURAL_RELS=MENTIONS,NEXT
 Lalu hapus override `NEO4J_URI` di `docker-compose.yml` (service `neo4j` juga
 boleh dihapus sekalian kalau tidak dipakai).
 
+Kalau graf tujuan **tidak** punya lapisan `(:Chunk {text})-[:MENTIONS]->(entity)`
+sama sekali — mis. graph ekstraksi-konsep yang menaruh teks di label lain,
+lewat relasi lain, atau bahkan dua hop jauhnya — retrieval tetap bisa
+dikonfigurasi tanpa mengubah kode lewat tiga variabel tambahan:
+
+```
+KG_CHUNK_LABEL=Description          # label node yang berisi teks
+KG_CHUNK_TEXT_PROP=text             # properti teksnya
+# pola Cypher mentah dari node teks (c) ke node entity (e); boleh multi-hop:
+KG_CHUNK_TO_ENTITY_PATTERN=(c:{chunk_label})<-[:HAS_DESCRIPTION]-(:Type)<-[:HAS_TYPE]-(e:{entity_label})
+```
+
+Contoh nyata (skema KG Nabhyla: Topic/Type/Description) ada di `.env.example`
+dan `docs/NABHYLA_CONNECT.md` — graph itu ternyata punya dua lapisan sekaligus
+(satu lapisan `Chunk/MENTIONS` generik, satu lapisan konsep Topic/Description),
+dan profil ini sengaja menunjuk ke lapisan konsepnya, bukan berarti graph itu
+tidak punya `Chunk`/`MENTIONS` sama sekali. Untuk mencoba profil semacam ini
+tanpa menyentuh graph orang lain, seed dulu bentuk yang sama di Neo4j lokal
+dengan `tests/seed_nabhyla_shape.py`.
+
 ## Orchestrator agentic (Phase 5)
 
 Secara default agent selalu memanggil `answer_question`. Dengan orchestrator

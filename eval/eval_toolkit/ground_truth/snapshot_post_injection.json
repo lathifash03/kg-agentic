@@ -1,0 +1,36 @@
+{
+  "frozen_at": "2026-08-04T05:43:01.139504+00:00",
+  "neo4j_uri": "bolt://localhost:7687",
+  "database": "neo4j",
+  "node_count": 365,
+  "relationship_count": 815,
+  "labels": {
+    "Description": 109,
+    "Chunk": 106,
+    "Topic": 104,
+    "Agent": 23,
+    "Type": 19,
+    "Role": 2,
+    "Source": 1,
+    "Document": 1
+  },
+  "relationship_types": {
+    "MENTIONS": 357,
+    "HAS_DESCRIPTION": 109,
+    "PART_OF": 106,
+    "NEXT": 105,
+    "HAS_TYPE": 77,
+    "HAS_SUBTOPIC": 53,
+    "HAS_SOURCE": 3,
+    "ROLE_IN_PAPER": 2,
+    "RELATES_TO": 1,
+    "WRITES_ABOUT": 1,
+    "SUPERSEDED_BY": 1
+  },
+  "metadata_coverage": {
+    "created_at": 104,
+    "source_type": 104,
+    "confidence_score": 104
+  },
+  "note": "All ground-truth labels in this directory refer to THIS snapshot."
+}

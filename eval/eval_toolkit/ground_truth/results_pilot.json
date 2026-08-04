@@ -1,0 +1,96 @@
+{
+  "summary": {
+    "n_questions": 4,
+    "overall_accuracy": 0.75,
+    "per_category": {
+      "a_answerable_good": {
+        "correct": 1,
+        "total": 1,
+        "accuracy": 1.0
+      },
+      "b_out_of_scope": {
+        "correct": 1,
+        "total": 1,
+        "accuracy": 1.0
+      },
+      "c_low_trust": {
+        "correct": 1,
+        "total": 1,
+        "accuracy": 1.0
+      },
+      "d_temporal_invalid": {
+        "correct": 0,
+        "total": 1,
+        "accuracy": 0.0
+      }
+    },
+    "false_pass": {
+      "count": 0,
+      "ids": [],
+      "rate_over_nonpass": 0.0
+    },
+    "false_block": {
+      "count": 0,
+      "ids": [],
+      "rate_over_answerable": 0.0
+    }
+  },
+  "per_item": [
+    {
+      "id": "a01",
+      "category": "a_answerable_good",
+      "question": "What is Grouping Multiple Customer Orders?",
+      "expected": "PASS",
+      "predicted": "PASS",
+      "correct": true,
+      "passed": true,
+      "trust_score": 0.4998,
+      "temporal_status": "VALID",
+      "faithfulness": 0.9,
+      "answer_snippet": "Grouping multiple customer orders means handling and processing multiple orders at once in a single assignment step during the picking opera",
+      "seconds": 56.2
+    },
+    {
+      "id": "b01",
+      "category": "b_out_of_scope",
+      "question": "What does the lab documentation say about quantum annealing budget?",
+      "expected": "NO_INFO",
+      "predicted": "NO_INFO",
+      "correct": true,
+      "passed": false,
+      "trust_score": 0.4998,
+      "temporal_status": "VALID",
+      "faithfulness": 0.0,
+      "answer_snippet": "The provided context does not contain information about the quantum annealing budget. Therefore, I do not have enough data to provide detail",
+      "seconds": 39.2
+    },
+    {
+      "id": "c01",
+      "category": "c_low_trust",
+      "question": "What is the recommended recalibration interval for the lab vibration sensors?",
+      "expected": "RELEASE_WITH_DISCLAIMER",
+      "predicted": "RELEASE_WITH_DISCLAIMER",
+      "correct": true,
+      "passed": false,
+      "trust_score": 0.4805,
+      "temporal_status": "VALID",
+      "faithfulness": 0.35,
+      "answer_snippet": "The recommended recalibration interval for the lab vibration sensors that was suggested during the discussion is every 45 days. however, it ",
+      "seconds": 27.2
+    },
+    {
+      "id": "d01",
+      "category": "d_temporal_invalid",
+      "question": "When does the quarterly data backup run and where does it archive?",
+      "expected": "TEMPORAL_FLAGGED",
+      "predicted": "RELEASE_WITH_DISCLAIMER",
+      "correct": false,
+      "passed": false,
+      "trust_score": 0.4998,
+      "temporal_status": "VALID",
+      "faithfulness": 0.0,
+      "answer_snippet": "The quarterly data backup runs on the first Friday of the quarter and archives to the NAS pool.\n\n[!] Unverified: the answer may not be fully",
+      "seconds": 34.8
+    }
+  ]
+}

@@ -33,8 +33,10 @@ import urllib.request
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Protocol
 
+from neo4j.exceptions import ClientError
+
 from kg_agent.config import DEFAULT_GROQ_MODEL, Config, get_config
-from kg_agent.neo4j_client import Neo4jClient
+from kg_agent.neo4j_client import Neo4jClient, escape_label
 from kg_agent.node_trust import score_entities, summarise_scores
 from kg_agent.temporal_validity import (
     NodeValidity,
@@ -412,25 +414,55 @@ def _expand_rows_to_context(
     return RetrievedContext(node_names=names, chunks=chunks, strategy=strategy)
 
 
+def _chunk_to_entity_pattern(client: Neo4jClient, config: Config) -> str:
+    """Render the configured chunk->entity Cypher pattern for this client/config.
+
+    Both placeholders are already-escaped labels by the time they reach the
+    template, so the result is safe to splice directly into a query string.
+    """
+    return config.retrieval.chunk_to_entity_pattern.format(
+        chunk_label=escape_label(config.retrieval.chunk_label),
+        entity_label=client._label,
+    )
+
+
 def retrieve_vector(client: Neo4jClient, config: Config, query: str, k: int) -> Optional[RetrievedContext]:
-    """Vector retrieval over the Chunk embedding index, expanded via MENTIONS.
+    """Vector retrieval over the configured chunk embedding index, expanded to
+    entities via the configured chunk-to-entity pattern (``MENTIONS`` by
+    default; may be a longer path for differently-shaped graphs).
 
     Returns ``None`` if the query cannot be embedded (model unavailable).
     """
     vec = _embed_query_ollama(query, config)
     if vec is None:
         return None
-    # MENTIONS edges are sparse (few chunks mention entities), so fetch a wider
-    # set of chunks to actually surface entity sources, then keep only the top-k
-    # for the answer context to avoid diluting it.
+    # The chunk->entity path can be sparse, so fetch a wider set of chunks to
+    # actually surface entity sources, then keep only the top-k for the answer
+    # context to avoid diluting it.
     fetch_k = max(k * 3, 12)
+    pattern = _chunk_to_entity_pattern(client, config)
+    chunk_label = escape_label(config.retrieval.chunk_label)
+    text_prop = config.retrieval.chunk_text_property
     cypher = f"""
         CALL db.index.vector.queryNodes($index, $k, $vec) YIELD node AS c, score
-        OPTIONAL MATCH (c)-[:MENTIONS]->(e:{client._label})
-        RETURN c.text AS text, score, collect(DISTINCT e.{client._name_prop}) AS entity_names
+        WHERE c:{chunk_label}
+        OPTIONAL MATCH {pattern}
+        RETURN c.{text_prop} AS text, score, collect(DISTINCT e.{client._name_prop}) AS entity_names
         ORDER BY score DESC
     """
-    rows = client.run_read(cypher, index=config.retrieval.vector_index_name, k=fetch_k, vec=vec)
+    try:
+        rows = client.run_read(cypher, index=config.retrieval.vector_index_name, k=fetch_k, vec=vec)
+    except ClientError as exc:
+        # The configured vector index may not exist (or not cover the chunk
+        # label) on this graph - a config/shape mismatch, not a transient
+        # error. Fall back to keyword retrieval instead of crashing, mirroring
+        # the "embedding unavailable" path above.
+        logger.warning(
+            "Vector index %r unusable (%s); will use keyword retrieval.",
+            config.retrieval.vector_index_name,
+            getattr(exc, "message", None) or exc,
+        )
+        return None
     ctx = _expand_rows_to_context(rows, "vector", config.retrieval.max_sources)
     ctx.chunks = ctx.chunks[:k]
     return ctx
@@ -456,19 +488,23 @@ def retrieve_keyword(client: Neo4jClient, config: Config, query: str, k: int) ->
     """Keyword retrieval: rank entity-bearing chunks by query-term hits.
 
     Dependency-free fallback that always works against the live graph. Only
-    chunks that actually mention entities are considered (skips title/TOC
-    pages), and ties are broken by ``elementId`` for deterministic results.
+    chunks that actually reach an entity via the configured chunk-to-entity
+    pattern are considered (skips title/TOC pages or orphan text nodes), and
+    ties are broken by ``elementId`` for deterministic results.
     """
     terms = _query_terms(query)
+    pattern = _chunk_to_entity_pattern(client, config)
+    chunk_label = escape_label(config.retrieval.chunk_label)
+    text_prop = config.retrieval.chunk_text_property
     cypher = f"""
-        MATCH (c:Chunk)
-        WHERE any(t IN $terms WHERE toLower(c.text) CONTAINS t)
-          AND EXISTS {{ (c)-[:MENTIONS]->(:{client._label}) }}
-        WITH c, size([t IN $terms WHERE toLower(c.text) CONTAINS t]) AS hits
+        MATCH (c:{chunk_label})
+        WHERE any(t IN $terms WHERE toLower(c.{text_prop}) CONTAINS t)
+          AND EXISTS {{ {pattern} }}
+        WITH c, size([t IN $terms WHERE toLower(c.{text_prop}) CONTAINS t]) AS hits
         ORDER BY hits DESC, elementId(c)
         LIMIT $k
-        MATCH (c)-[:MENTIONS]->(e:{client._label})
-        RETURN c.text AS text, collect(DISTINCT e.{client._name_prop}) AS entity_names
+        MATCH {pattern}
+        RETURN c.{text_prop} AS text, collect(DISTINCT e.{client._name_prop}) AS entity_names
     """
     rows = client.run_read(cypher, terms=terms, k=k)
     return _expand_rows_to_context(rows, "keyword", config.retrieval.max_sources)
@@ -513,6 +549,15 @@ _FAITHFULNESS_SYSTEM = (
     '{"faithfulness": <float 0-1>, "verdict": "<short>", '
     '"unsupported_claims": ["..."]}. faithfulness is the fraction of the '
     "answer's claims that are supported by the sources."
+)
+
+# Returned by _generate_answer instead of a blank string when the main LLM's
+# completion is empty (observed live with qwen3-vl:4b: a "thinking" model can
+# spend its whole token budget reasoning and never emit bounded content).
+# _check_faithfulness matches on this exact string to short-circuit the judge
+# call rather than scoring emptiness as if it were a real claim.
+_EMPTY_ANSWER_MESSAGE = (
+    "The model did not produce an answer for this query (empty response)."
 )
 
 
@@ -599,14 +644,32 @@ class AgenticVerifier:
 
     # -- LLM steps -------------------------------------------------------- #
     def _generate_answer(self, query: str, context: str) -> str:
-        """Generate a grounded draft answer from the query and context."""
+        """Generate a grounded draft answer from the query and context.
+
+        Never returns a blank string. Some "thinking" models (e.g.
+        ``qwen3-vl:4b``) can spend their whole token budget on internal
+        reasoning and emit no bounded content at all - this was already known
+        to break the faithfulness judge, and was found live to affect main
+        answer generation too, on a real multi-source query against Nabhyla's
+        graph. A blank answer must never look like a legitimate empty-context
+        case, so it gets its own explicit sentinel.
+        """
         if not context.strip():
             return "No supporting context was retrieved for this query."
         user = f"QUESTION: {query}\n\nCONTEXT:\n{context}"
-        return self.llm.complete(_ANSWER_SYSTEM, user).strip()
+        raw = self.llm.complete(_ANSWER_SYSTEM, user).strip()
+        return raw or _EMPTY_ANSWER_MESSAGE
 
     def _check_faithfulness(self, answer: str, context: str) -> Dict[str, Any]:
-        """Run the Step 3 faithfulness check, returning a parsed result dict."""
+        """Run the Step 3 faithfulness check, returning a parsed result dict.
+
+        An empty/sentinel answer is never sent to the judge - there is no
+        real content to check faithfulness against, and asking anyway risks a
+        misleadingly non-zero score for literally nothing (observed live:
+        hermes3:3b scored an empty answer 0.70, clearing the 0.7 gate).
+        """
+        if not answer.strip() or answer.strip() == _EMPTY_ANSWER_MESSAGE:
+            return {"faithfulness": 0.0, "verdict": "empty_answer", "unsupported_claims": []}
         user = f"ANSWER: {answer}\n\nSOURCES: {context}"
         raw = self.judge.complete(_FAITHFULNESS_SYSTEM, user)
         return _parse_faithfulness(raw)
@@ -758,10 +821,12 @@ class AgenticVerifier:
     # -- builders --------------------------------------------------------- #
     def _context_for_names(self, names: List[str]) -> str:
         """Fetch supporting chunk text for caller-supplied entity names."""
+        pattern = _chunk_to_entity_pattern(self.client, self.config)
+        text_prop = self.config.retrieval.chunk_text_property
         cypher = f"""
-            MATCH (e:{self.client._label})<-[:MENTIONS]-(c:Chunk)
+            MATCH {pattern}
             WHERE toLower(e.{self.client._name_prop}) IN $names
-            RETURN DISTINCT c.text AS text
+            RETURN DISTINCT c.{text_prop} AS text
             LIMIT $k
         """
         rows = self.client.run_read(

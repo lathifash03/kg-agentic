@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
-def _escape_label(label: str) -> str:
+def escape_label(label: str) -> str:
     """Backtick-escape a Neo4j label so it is safe to interpolate into Cypher.
 
     Labels cannot be passed as query parameters, so they must be inlined. The
@@ -40,6 +40,11 @@ def _escape_label(label: str) -> str:
     avoid breaking the query.
     """
     return "`" + label.replace("`", "``") + "`"
+
+
+# Backward-compatible alias - kept in case anything outside this module still
+# imports the original underscore-prefixed name.
+_escape_label = escape_label
 
 
 def to_datetime(value: Any) -> Optional[datetime]:

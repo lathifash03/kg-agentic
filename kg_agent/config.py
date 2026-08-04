@@ -279,6 +279,32 @@ class RetrievalConfig:
     ollama_url: str = field(default_factory=lambda: _env_str("OLLAMA_URL", "http://localhost:11434"))
     prefer_vector: bool = field(default_factory=lambda: _env_bool("KG_PREFER_VECTOR", True))
 
+    # -- Text-bearing node schema (how "a chunk" and "chunk mentions entity" are
+    # -- named in *this* graph). Defaults reproduce the original hardcoded
+    # -- ``(:Chunk {text})-[:MENTIONS]->(:Entity)`` shape exactly, so existing
+    # -- deployments are unaffected.
+    #
+    # Some graphs (e.g. a concept-extraction KG with no document-chunk layer)
+    # attach text to entities through a different label/relationship, or even a
+    # multi-hop path (Topic -[:HAS_TYPE]-> Type -[:HAS_DESCRIPTION]-> Description
+    # in one real case). ``chunk_to_entity_pattern`` is a raw Cypher pattern
+    # fragment using the fixed variable names ``c`` (the text-bearing node,
+    # pre-filtered by ``chunk_label``) and ``e`` (the entity node); it is
+    # rendered with ``.format(chunk_label=..., entity_label=...)`` (both already
+    # backtick-escaped) before being spliced into a query. Cypher pattern
+    # matching does not care which side is already bound, so the *same*
+    # rendered pattern is reused verbatim across vector retrieval, keyword
+    # retrieval and the caller-supplied-names lookup.
+    chunk_label: str = field(default_factory=lambda: _env_str("KG_CHUNK_LABEL", "Chunk"))
+    chunk_text_property: str = field(
+        default_factory=lambda: _env_str("KG_CHUNK_TEXT_PROP", "text")
+    )
+    chunk_to_entity_pattern: str = field(
+        default_factory=lambda: _env_str(
+            "KG_CHUNK_TO_ENTITY_PATTERN", "(c:{chunk_label})-[:MENTIONS]->(e:{entity_label})"
+        )
+    )
+
 
 @dataclass
 class VerifierConfig:

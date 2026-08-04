@@ -454,6 +454,336 @@ def test_ollama_model_guard_rejects_groq_default():
     assert resolve_ollama_model(cfg) == "qwen3-vl:4b"
 
 
+# --------------------------------------------------------------------------- #
+# Configurable chunk/entity schema (adapting the retriever to a differently-
+# shaped graph, e.g. Nabhyla's Topic/Type/Description concept graph, without
+# touching any live data - these tests only check the rendered Cypher pattern).
+# --------------------------------------------------------------------------- #
+def test_default_chunk_pattern_matches_original_hardcoded_shape(monkeypatch):
+    """With no overrides, the rendered pattern is exactly the old literal Cypher.
+
+    Explicitly clears the relevant env vars first: RetrievalConfig's fields
+    read straight from os.environ via _env_str, so this test would otherwise
+    silently assert on whatever profile happens to be active in a real
+    developer's .env (e.g. the Nabhyla profile) instead of the true default -
+    exactly the kind of environment-dependent flakiness that bit this suite
+    once already.
+    """
+    for key in (
+        "KG_CHUNK_LABEL",
+        "KG_CHUNK_TEXT_PROP",
+        "KG_CHUNK_TO_ENTITY_PATTERN",
+        "KG_ENTITY_LABEL",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+    from kg_agent.agentic_verifier import _chunk_to_entity_pattern
+    from kg_agent.config import RetrievalConfig
+    from kg_agent.neo4j_client import Neo4jClient, escape_label
+
+    retrieval = RetrievalConfig()
+    assert retrieval.chunk_label == "Chunk"
+    assert retrieval.chunk_text_property == "text"
+
+    class _Cfg:
+        pass
+
+    cfg = _Cfg()
+    cfg.retrieval = retrieval
+
+    client = Neo4jClient.__new__(Neo4jClient)  # no live connection needed
+    client._label = escape_label("__Entity__")
+
+    pattern = _chunk_to_entity_pattern(client, cfg)
+    assert pattern == "(c:`Chunk`)-[:MENTIONS]->(e:`__Entity__`)"
+
+
+def test_chunk_pattern_renders_nabhyla_two_hop_shape():
+    """A differently-shaped graph (no Chunk/MENTIONS at all) is expressible
+    purely through config - no code changes needed per graph.
+
+    This mirrors Nabhyla's real schema recon: entities are ``Topic`` nodes,
+    and the text-bearing node (``Description``) reaches them two hops away,
+    through an intermediate ``Type`` node, via ``HAS_DESCRIPTION``/``HAS_TYPE``
+    (not ``MENTIONS``).
+    """
+    from kg_agent.agentic_verifier import _chunk_to_entity_pattern
+    from kg_agent.config import RetrievalConfig, get_config
+    from kg_agent.neo4j_client import Neo4jClient
+
+    cfg = get_config()
+    cfg.retrieval = RetrievalConfig(
+        chunk_label="Description",
+        chunk_text_property="text",
+        chunk_to_entity_pattern=(
+            "(c:{chunk_label})<-[:HAS_DESCRIPTION]-(:Type)<-[:HAS_TYPE]-(e:{entity_label})"
+        ),
+    )
+
+    client = Neo4jClient.__new__(Neo4jClient)
+    client._label = "`Topic`"
+
+    pattern = _chunk_to_entity_pattern(client, cfg)
+    assert pattern == (
+        "(c:`Description`)<-[:HAS_DESCRIPTION]-(:Type)<-[:HAS_TYPE]-(e:`Topic`)"
+    )
+    # Both node variables the rest of the retriever depends on (`c`, `e`) are
+    # still present, whatever the path between them looks like.
+    assert "(c:" in pattern
+    assert "(e:" in pattern
+
+
+def test_escape_label_is_public_and_backward_compatible():
+    """escape_label replaces the old _escape_label; the alias must still work."""
+    from kg_agent.neo4j_client import _escape_label, escape_label
+
+    assert escape_label is _escape_label
+    assert escape_label("Weird`Label") == "`Weird``Label`"
+
+
+class _StubNabhylaClient:
+    """Fakes just enough of Neo4jClient to exercise retrieval end to end,
+    returning canned rows shaped like a real Topic/Type/Description query
+    would - without any live database.
+    """
+
+    _label = "`Topic`"
+    _name_prop = "name"
+
+    def __init__(self, canned_rows):
+        self._canned = canned_rows
+        self.queries = []
+
+    def run_read(self, cypher, **params):
+        self.queries.append((cypher, params))
+        return self._canned
+
+
+def _nabhyla_config():
+    from kg_agent.config import RetrievalConfig, get_config
+
+    cfg = get_config()
+    cfg.retrieval = RetrievalConfig(
+        chunk_label="Description",
+        chunk_text_property="text",
+        chunk_to_entity_pattern=(
+            "(c:{chunk_label})<-[:HAS_DESCRIPTION]-(:Type)<-[:HAS_TYPE]-(e:{entity_label})"
+        ),
+    )
+    return cfg
+
+
+def test_retrieve_keyword_against_nabhyla_shaped_rows():
+    """retrieve_keyword issues Topic/Type/Description Cypher (no Chunk/MENTIONS
+    anywhere) and correctly parses the returned rows into a RetrievedContext.
+    """
+    from kg_agent.agentic_verifier import retrieve_keyword
+
+    canned = [
+        {
+            "text": "PNP (Pick-and-Pass) is an order picking method where "
+            "totes move through a sequence of fixed zones.",
+            "entity_names": ["Pnp"],
+        }
+    ]
+    client = _StubNabhylaClient(canned)
+    cfg = _nabhyla_config()
+
+    ctx = retrieve_keyword(client, cfg, "what is the pick and pass method?", k=5)
+
+    assert ctx.node_names == ["Pnp"]
+    assert ctx.chunks == [canned[0]["text"]]
+
+    all_cypher = " ".join(q[0] for q in client.queries)
+    assert "Description" in all_cypher
+    assert "HAS_DESCRIPTION" in all_cypher
+    assert "HAS_TYPE" in all_cypher
+    assert "Chunk" not in all_cypher
+    assert "MENTIONS" not in all_cypher
+
+
+def test_retrieve_falls_back_to_keyword_when_vector_index_missing(monkeypatch):
+    """A missing/unusable vector index must degrade to keyword retrieval, not
+    crash. Regression: with a working embed model but no vector index (a common
+    shape mismatch, e.g. an index on :Chunk when the graph has :Description),
+    the ClientError from db.index.vector.queryNodes used to propagate and kill
+    the whole query.
+    """
+    from neo4j.exceptions import ClientError
+
+    from kg_agent import agentic_verifier as av
+
+    # Pretend embedding succeeds so we actually reach the vector index query.
+    monkeypatch.setattr(av, "_embed_query_ollama", lambda query, config: [0.1, 0.2, 0.3])
+
+    canned = [{"text": "PNP is a pick-and-pass order picking method.", "entity_names": ["Pnp"]}]
+
+    class _IndexMissingClient:
+        _label = "`Topic`"
+        _name_prop = "name"
+
+        def __init__(self):
+            self.queries = []
+
+        def run_read(self, cypher, **params):
+            self.queries.append(cypher)
+            if "queryNodes" in cypher:  # the vector-index call
+                raise ClientError("There is no such vector schema index: vector")
+            return canned  # the keyword-fallback query
+
+    client = _IndexMissingClient()
+    cfg = _nabhyla_config()
+    cfg.retrieval.prefer_vector = True
+
+    ctx = av.retrieve(client, cfg, "what is pnp?", "vector", k=5)
+
+    assert ctx.node_names == ["Pnp"]  # keyword result surfaced, no crash
+    assert ctx.chunks == [canned[0]["text"]]
+    assert any("queryNodes" in q for q in client.queries)  # vector WAS attempted
+    assert any("HAS_DESCRIPTION" in q for q in client.queries)  # then keyword ran
+
+
+def test_retrieve_vector_filters_by_configured_chunk_label(monkeypatch):
+    """The vector-index call must filter results to the configured chunk_label.
+
+    Regression found live against Nabhyla's real graph: her vector index
+    ``vector`` covers ``:Chunk``, but the Topic/Description profile's
+    ``chunk_label`` is ``Description``. Without a label filter right after
+    ``db.index.vector.queryNodes``, the call returns real ``:Chunk`` nodes
+    (which happen to share the ``text`` property name) with zero entity
+    attribution - an answer that *looks* like it worked (non-empty text) but
+    silently grounds itself in the wrong layer of the graph (sources_used
+    empty, trust_score 0.0). The fix filters the vector hits to the
+    configured chunk label so a mismatch falls through to keyword retrieval
+    instead, via the existing "no chunks -> fallback" path in ``retrieve()``.
+    """
+    from kg_agent import agentic_verifier as av
+
+    monkeypatch.setattr(av, "_embed_query_ollama", lambda query, config: [0.1, 0.2, 0.3])
+
+    class _RecordingClient:
+        _label = "`Topic`"
+        _name_prop = "name"
+
+        def __init__(self, rows):
+            self._rows = rows
+            self.queries = []
+
+        def run_read(self, cypher, **params):
+            self.queries.append(cypher)
+            return self._rows
+
+    client = _RecordingClient([])
+    cfg = _nabhyla_config()
+
+    av.retrieve_vector(client, cfg, "what is pnp?", k=5)
+
+    cypher = client.queries[0]
+    assert "queryNodes" in cypher
+    assert "WHERE c:`Description`" in cypher
+
+
+def test_context_for_names_against_nabhyla_shaped_rows():
+    """AgenticVerifier._context_for_names uses the same configurable pattern
+    for the caller-supplied-names path (used on a fixed first retrieval).
+    """
+    from kg_agent.agentic_verifier import AgenticVerifier
+
+    canned = [{"text": "Throughput improved 18% over the FCFS baseline."}]
+    client = _StubNabhylaClient(canned)
+    cfg = _nabhyla_config()
+
+    verifier = AgenticVerifier.__new__(AgenticVerifier)  # skip __init__ (no LLM needed)
+    verifier.client = client
+    verifier.config = cfg
+
+    text = verifier._context_for_names(["Throughput"])
+
+    assert canned[0]["text"] in text
+    cypher, params = client.queries[-1]
+    assert "HAS_TYPE" in cypher
+    assert "HAS_DESCRIPTION" in cypher
+    assert params["names"] == ["throughput"]
+
+
+# --------------------------------------------------------------------------- #
+# Empty-answer handling: a "thinking" main LLM (qwen3-vl:4b) can spend its
+# whole token budget reasoning and emit no bounded content at all. Found live
+# against Nabhyla's real graph: the answer was blank, yet the faithfulness
+# judge scored it 0.70 - clearing the gate for literally nothing.
+# --------------------------------------------------------------------------- #
+class _FakeCompletionLLM:
+    """A minimal LLMClient stand-in that returns a scripted completion."""
+
+    name = "fake"
+
+    def __init__(self, response):
+        self._response = response
+        self.calls = []
+
+    def complete(self, system, user):
+        self.calls.append((system, user))
+        return self._response
+
+
+def _bare_verifier(llm=None, judge=None):
+    from kg_agent.agentic_verifier import AgenticVerifier
+    from kg_agent.config import get_config
+
+    verifier = AgenticVerifier.__new__(AgenticVerifier)  # skip __init__: no live LLM/DB
+    verifier.config = get_config()
+    verifier.llm = llm
+    verifier.judge = judge if judge is not None else llm
+    return verifier
+
+
+def test_generate_answer_never_returns_blank_string():
+    """An empty completion becomes an explicit sentinel, never ''."""
+    from kg_agent.agentic_verifier import _EMPTY_ANSWER_MESSAGE
+
+    verifier = _bare_verifier(llm=_FakeCompletionLLM("   "))  # whitespace-only
+    answer = verifier._generate_answer("what is pnp?", "some real context")
+
+    assert answer == _EMPTY_ANSWER_MESSAGE
+    assert answer.strip() != ""
+
+
+def test_generate_answer_passes_through_real_content():
+    """A normal, non-empty completion is returned unmodified (stripped)."""
+    verifier = _bare_verifier(llm=_FakeCompletionLLM("  PNP is pick-and-pass.  "))
+    answer = verifier._generate_answer("what is pnp?", "some real context")
+
+    assert answer == "PNP is pick-and-pass."
+
+
+def test_check_faithfulness_short_circuits_on_empty_answer():
+    """An empty/sentinel answer must never reach the judge - regression for
+    the live finding: hermes3:3b scored a blank answer 0.70 (>= the 0.7
+    gate), which would have silently passed verification for no content.
+    """
+    from kg_agent.agentic_verifier import _EMPTY_ANSWER_MESSAGE
+
+    judge = _FakeCompletionLLM('{"faithfulness": 0.7, "verdict": "supported"}')
+    verifier = _bare_verifier(llm=None, judge=judge)
+
+    result = verifier._check_faithfulness(_EMPTY_ANSWER_MESSAGE, "some real context")
+
+    assert result["faithfulness"] == 0.0
+    assert result["verdict"] == "empty_answer"
+    assert judge.calls == []  # the judge was never actually asked
+
+
+def test_check_faithfulness_still_calls_judge_for_real_answers():
+    """Non-empty answers are unaffected - still sent to the judge as before."""
+    judge = _FakeCompletionLLM('{"faithfulness": 0.9, "verdict": "supported"}')
+    verifier = _bare_verifier(llm=None, judge=judge)
+
+    result = verifier._check_faithfulness("PNP is pick-and-pass.", "some real context")
+
+    assert result["faithfulness"] == 0.9
+    assert len(judge.calls) == 1
+
+
 if __name__ == "__main__":
     import pytest as _pytest
 

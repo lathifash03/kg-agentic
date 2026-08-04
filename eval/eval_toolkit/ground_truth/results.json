@@ -1,0 +1,323 @@
+{
+  "summary": {
+    "n_questions": 20,
+    "overall_accuracy": 0.75,
+    "per_category": {
+      "a_answerable_good": {
+        "correct": 6,
+        "total": 6,
+        "accuracy": 1.0
+      },
+      "b_out_of_scope": {
+        "correct": 3,
+        "total": 6,
+        "accuracy": 0.5
+      },
+      "c_low_trust": {
+        "correct": 3,
+        "total": 5,
+        "accuracy": 0.6
+      },
+      "d_temporal_invalid": {
+        "correct": 3,
+        "total": 3,
+        "accuracy": 1.0
+      }
+    },
+    "false_pass": {
+      "count": 2,
+      "ids": [
+        "c03",
+        "c05"
+      ],
+      "rate_over_nonpass": 0.143
+    },
+    "false_block": {
+      "count": 0,
+      "ids": [],
+      "rate_over_answerable": 0.0
+    }
+  },
+  "per_item": [
+    {
+      "id": "a01",
+      "category": "a_answerable_good",
+      "question": "What is Grouping Multiple Customer Orders?",
+      "expected": "PASS",
+      "predicted": "PASS",
+      "correct": true,
+      "passed": true,
+      "trust_score": 0.4998,
+      "temporal_status": "VALID",
+      "faithfulness": 0.95,
+      "answer_snippet": "Grouping multiple customer orders means handling multiple orders at once during the assignment process, rather than processing each order in",
+      "seconds": 32.0
+    },
+    {
+      "id": "a02",
+      "category": "a_answerable_good",
+      "question": "What is Walking Time Reduction?",
+      "expected": "PASS",
+      "predicted": "PASS",
+      "correct": true,
+      "passed": true,
+      "trust_score": 0.4998,
+      "temporal_status": "VALID",
+      "faithfulness": 0.9,
+      "answer_snippet": "Walking Time Reduction refers to optimizing the process to reduce the time spent walking in a distribution center, specifically for De Bijen",
+      "seconds": 14.7
+    },
+    {
+      "id": "a03",
+      "category": "a_answerable_good",
+      "question": "What is Comparison Of Assignment Methods?",
+      "expected": "PASS",
+      "predicted": "PASS",
+      "correct": true,
+      "passed": true,
+      "trust_score": 0.4998,
+      "temporal_status": "VALID",
+      "faithfulness": 0.8,
+      "answer_snippet": "The comparison compares three assignment methods for order to pod assignment in Robotic Mobile Fulfillment Systems (RMFS), to minimize the n",
+      "seconds": 36.2
+    },
+    {
+      "id": "a04",
+      "category": "a_answerable_good",
+      "question": "What is Performance Measurements?",
+      "expected": "PASS",
+      "predicted": "PASS",
+      "correct": true,
+      "passed": true,
+      "trust_score": 0.4998,
+      "temporal_status": "VALID",
+      "faithfulness": 0.9,
+      "answer_snippet": "Performance Measurements in the given context refer to key indicators used to evaluate the system's efficiency and effectiveness. Some of th",
+      "seconds": 19.7
+    },
+    {
+      "id": "a05",
+      "category": "a_answerable_good",
+      "question": "What is Pile On?",
+      "expected": "PASS",
+      "predicted": "PASS",
+      "correct": true,
+      "passed": true,
+      "trust_score": 0.4998,
+      "temporal_status": "VALID",
+      "faithfulness": 0.71,
+      "answer_snippet": "Pile-On represents the average number of order items picked in one pod. It acts as a key performance indicator for measuring order picking e",
+      "seconds": 39.5
+    },
+    {
+      "id": "a06",
+      "category": "a_answerable_good",
+      "question": "What is Significant Difference?",
+      "expected": "PASS",
+      "predicted": "PASS",
+      "correct": true,
+      "passed": true,
+      "trust_score": 0.4998,
+      "temporal_status": "VALID",
+      "faithfulness": 0.7,
+      "answer_snippet": "SIGNIFICANT DIFFERENCE:\n\nThe context provides information about significant differences in the context of a robot parts-to-picker system cal",
+      "seconds": 56.7
+    },
+    {
+      "id": "b01",
+      "category": "b_out_of_scope",
+      "question": "What does the lab documentation say about quantum annealing budget?",
+      "expected": "NO_INFO",
+      "predicted": "NO_INFO",
+      "correct": true,
+      "passed": false,
+      "trust_score": 0.4998,
+      "temporal_status": "VALID",
+      "faithfulness": 0.0,
+      "answer_snippet": "The provided context does not contain information about the quantum annealing budget. Therefore, I do not have enough data to provide detail",
+      "seconds": 31.4
+    },
+    {
+      "id": "b02",
+      "category": "b_out_of_scope",
+      "question": "What does the lab documentation say about wet-lab safety audit?",
+      "expected": "NO_INFO",
+      "predicted": "RELEASE_WITH_DISCLAIMER",
+      "correct": false,
+      "passed": false,
+      "trust_score": 0.4997,
+      "temporal_status": "VALID",
+      "faithfulness": 0.4,
+      "answer_snippet": "The provided context does not give information about the lab documentation regarding wet-lab safety audit. It discusses percentage of Pods U",
+      "seconds": 639.0
+    },
+    {
+      "id": "b03",
+      "category": "b_out_of_scope",
+      "question": "What does the lab documentation say about CRISPR protocol?",
+      "expected": "NO_INFO",
+      "predicted": "RELEASE_WITH_DISCLAIMER",
+      "correct": false,
+      "passed": false,
+      "trust_score": 0.4997,
+      "temporal_status": "VALID",
+      "faithfulness": 0.0,
+      "answer_snippet": "The provided context does not give information about the CRISPR protocol or any specific details about the lab documentation regarding CRISP",
+      "seconds": 187.8
+    },
+    {
+      "id": "b04",
+      "category": "b_out_of_scope",
+      "question": "What does the lab documentation say about wind tunnel calibration?",
+      "expected": "NO_INFO",
+      "predicted": "RELEASE_WITH_DISCLAIMER",
+      "correct": false,
+      "passed": false,
+      "trust_score": 0.4997,
+      "temporal_status": "VALID",
+      "faithfulness": 0.0,
+      "answer_snippet": "The lab documentation suggests that the vibration sensors should be recalibrated every 45 days, but this information has not been confirmed ",
+      "seconds": 86.5
+    },
+    {
+      "id": "b05",
+      "category": "b_out_of_scope",
+      "question": "What does the lab documentation say about satellite downlink schedule?",
+      "expected": "NO_INFO",
+      "predicted": "NO_INFO",
+      "correct": true,
+      "passed": false,
+      "trust_score": 0.4997,
+      "temporal_status": "VALID",
+      "faithfulness": 0.0,
+      "answer_snippet": "The provided context does not contain information about the satellite downlink schedule in the laboratory documentation. It discusses the Pe",
+      "seconds": 77.0
+    },
+    {
+      "id": "b06",
+      "category": "b_out_of_scope",
+      "question": "What does the lab documentation say about clinical trial enrollment?",
+      "expected": "NO_INFO",
+      "predicted": "NO_INFO",
+      "correct": true,
+      "passed": false,
+      "trust_score": 0.4997,
+      "temporal_status": "VALID",
+      "faithfulness": 0.0,
+      "answer_snippet": "The provided context does not contain information about clinical trial enrollment or any details related to lab documentation regarding clin",
+      "seconds": 39.7
+    },
+    {
+      "id": "c01",
+      "category": "c_low_trust",
+      "question": "What is the recommended recalibration interval for the lab vibration sensors?",
+      "expected": "RELEASE_WITH_DISCLAIMER",
+      "predicted": "RELEASE_WITH_DISCLAIMER",
+      "correct": true,
+      "passed": false,
+      "trust_score": 0.4804,
+      "temporal_status": "VALID",
+      "faithfulness": 0.35,
+      "answer_snippet": "The recommended recalibration interval for the lab vibration sensors that was suggested during the discussion is every 45 days. however, it ",
+      "seconds": 440.0
+    },
+    {
+      "id": "c02",
+      "category": "c_low_trust",
+      "question": "What EXP-year-initials naming convention did the older experiment datasets use?",
+      "expected": "RELEASE_WITH_DISCLAIMER",
+      "predicted": "RELEASE_WITH_DISCLAIMER",
+      "correct": true,
+      "passed": false,
+      "trust_score": 0.4744,
+      "temporal_status": "VALID",
+      "faithfulness": 0.0,
+      "answer_snippet": "The older experiment datasets used the EXP-<year>-<initials> naming convention for their naming, where <year> represents the year of the exp",
+      "seconds": 120.6
+    },
+    {
+      "id": "c03",
+      "category": "c_low_trust",
+      "question": "How many days ahead should GPU slots on the lab cluster be booked?",
+      "expected": "RELEASE_WITH_DISCLAIMER",
+      "predicted": "PASS",
+      "correct": false,
+      "passed": true,
+      "trust_score": 0.4631,
+      "temporal_status": "VALID",
+      "faithfulness": 0.9,
+      "answer_snippet": "Based on the provided context, GPU slots on the lab cluster should be booked at most 3 days ahead. This practice was mentioned once in a cha",
+      "seconds": 42.2
+    },
+    {
+      "id": "c04",
+      "category": "c_low_trust",
+      "question": "What desk-fan workaround was noted to prevent thermal throttling during long runs?",
+      "expected": "RELEASE_WITH_DISCLAIMER",
+      "predicted": "RELEASE_WITH_DISCLAIMER",
+      "correct": true,
+      "passed": false,
+      "trust_score": 0.4784,
+      "temporal_status": "VALID",
+      "faithfulness": 0.0,
+      "answer_snippet": "The described desk-fan workaround was mentioned to prevent thermal throttling during long runs by pointing a fan at the prototype rack. Howe",
+      "seconds": 92.0
+    },
+    {
+      "id": "c05",
+      "category": "c_low_trust",
+      "question": "What is the migration status of the old lab wiki?",
+      "expected": "RELEASE_WITH_DISCLAIMER",
+      "predicted": "PASS",
+      "correct": false,
+      "passed": true,
+      "trust_score": 0.4997,
+      "temporal_status": "VALID",
+      "faithfulness": 0.7,
+      "answer_snippet": "The context indicates that the old lab wiki was \"mostly migrated\" to the new system in spring without specifying which pages remain as unmig",
+      "seconds": 68.8
+    },
+    {
+      "id": "d01",
+      "category": "d_temporal_invalid",
+      "question": "What is the Quarterly Backup Procedure?",
+      "expected": "TEMPORAL_FLAGGED",
+      "predicted": "TEMPORAL_FLAGGED",
+      "correct": true,
+      "passed": false,
+      "trust_score": 0.3198,
+      "temporal_status": "OUTDATED",
+      "faithfulness": 0.7,
+      "answer_snippet": "The Quarterly Backup Procedure is to run a data backup every quarter on the first Friday. The archived data is stored in the Network Attache",
+      "seconds": 131.6
+    },
+    {
+      "id": "d02",
+      "category": "d_temporal_invalid",
+      "question": "What is the lab access policy?",
+      "expected": "TEMPORAL_FLAGGED",
+      "predicted": "TEMPORAL_FLAGGED",
+      "correct": true,
+      "passed": false,
+      "trust_score": 0.5226,
+      "temporal_status": "SUPERSEDED",
+      "faithfulness": 0.0,
+      "answer_snippet": "The lab access policy has changed since the provided context suggests two different policies. As per the \"Synthetic new.\" part, lab access n",
+      "seconds": 97.2
+    },
+    {
+      "id": "d03",
+      "category": "d_temporal_invalid",
+      "question": "What is the server room temperature setpoint?",
+      "expected": "TEMPORAL_FLAGGED",
+      "predicted": "TEMPORAL_FLAGGED",
+      "correct": true,
+      "passed": false,
+      "trust_score": 0.6347,
+      "temporal_status": "CONFLICTED",
+      "faithfulness": 1.0,
+      "answer_snippet": "The server room temperature setpoint, according to the provided context, is 19 degrees C per facilities guidance.\n\n[!] Unverified: some sour",
+      "seconds": 69.5
+    }
+  ]
+}

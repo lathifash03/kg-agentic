@@ -1,31 +1,16 @@
 """Step 2d — Inject TEMPORAL-INVALID cases for ground-truth category (d).
 
-ADAPTED to Nabhyla's schema AND to kg-agent's actual detection contract.
+CHUNK-PROFILE variant + kg-agent's real detection contract.
 
-Schema: each fact is a full 2-hop subgraph
-    (Topic)-[:HAS_TYPE]->(Type)-[:HAS_DESCRIPTION]->(Description {text})
-so the retriever (which reads Description.text) can actually surface it.
+Each fact is  (:Chunk {text, embedding}) -[:MENTIONS]-> (:Topic)  so vector
+retrieval (over the Chunk layer) can surface it with precise attribution.
+Temporal signals live on the Topic / its edges:
+  1. OUTDATED   - Topic.created_at pushed back > KG_OUTDATED_THRESHOLD_DAYS
+                  (a real Neo4j datetime, not a string - strings are ignored).
+  2. SUPERSEDED - (old)-[:SUPERSEDED_BY]->(new)  (kg-agent matches old->new via
+                  the configured supersedes rel; default SUPERSEDED_BY).
+  3. CONFLICTED - two Topics with the SAME name, different descriptions.
 
-Contract fixes vs the generic template (verified against kg_agent):
-  1. created_at is a real Neo4j datetime (a Python datetime object passed as a
-     parameter), NOT an ISO string. temporal_validity ignores string
-     timestamps, so a string would never be flagged OUTDATED.
-  2. SUPERSEDED uses  (old)-[:SUPERSEDED_BY]->(new)  — kg-agent matches an OLD
-     node pointing to a NEWER one via SUPERSEDED_BY (config default). The
-     generic template's (new)-[:SUPERSEDES]->(old) is the reverse name AND
-     direction.
-  3. CONFLICTED creates two nodes with the SAME name (different descriptions),
-     distinguished only by a private conflict_variant key so MERGE keeps them
-     separate. kg-agent flags a conflict when >1 entity shares a name.
-
-Three controlled failure modes: OUTDATED, SUPERSEDED, CONFLICTED. Questions
-answerable only from these nodes must have their temporal status detected
-(expected_gate_outcome = TEMPORAL_FLAGGED).
-
-All nodes carry  injected: true  +  injection_batch  for cleanup:
-    MATCH (n {injected: true}) DETACH DELETE n
-
-Usage:
     python scripts/inject_temporal.py --dry-run
     python scripts/inject_temporal.py
 """
@@ -33,8 +18,10 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import json
 import os
 import sys
+import urllib.request
 
 try:
     from neo4j import GraphDatabase
@@ -43,32 +30,48 @@ except ImportError:
 
 ENTITY_LABEL = os.environ.get("KG_ENTITY_LABEL", "Topic")
 NAME_PROP = os.environ.get("KG_ENTITY_NAME_PROP", "name")
-CHUNK_LABEL = os.environ.get("KG_CHUNK_LABEL", "Description")
-TEXT_PROP = os.environ.get("KG_CHUNK_TEXT_PROP", "text")
-# Match kg-agent's config default so the SUPERSEDED edge is actually detected.
 SUPERSEDES_REL = os.environ.get("KG_SUPERSEDES_REL", "SUPERSEDED_BY")
 OUTDATED_DAYS = int(os.environ.get("KG_OUTDATED_THRESHOLD_DAYS", "30"))
+EMBED_URL = os.environ.get("KG_EMBED_URL") or os.environ.get("OLLAMA_URL", "http://localhost:11434")
+EMBED_MODEL = os.environ.get("KG_EMBED_MODEL", "mxbai-embed-large")
 BATCH = f"temporal_{datetime.date.today().isoformat()}"
 
 
-def now_utc() -> datetime.datetime:
-    return datetime.datetime.now(datetime.timezone.utc)
+def embed(text: str):
+    payload = json.dumps({"model": EMBED_MODEL, "prompt": text}).encode()
+    req = urllib.request.Request(f"{EMBED_URL}/api/embeddings", data=payload,
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.loads(r.read().decode()).get("embedding")
 
 
-# Attach a dedicated Type + Description (with the retrievable text) to a Topic
-# already bound as `t` in the caller's query. Kept as a fragment so each case
-# builds the exact 2-hop shape without repeating the boilerplate.
-def subgraph(topic_alias: str, type_name: str, desc_name: str) -> str:
-    return f"""
-    MERGE (ty_{topic_alias}:Type {{{NAME_PROP}: '{type_name}'}})
-      SET ty_{topic_alias}.injected = true, ty_{topic_alias}.injection_batch = $batch
-    MERGE (d_{topic_alias}:`{CHUNK_LABEL}` {{{NAME_PROP}: '{desc_name}'}})
-      SET d_{topic_alias}.`{TEXT_PROP}` = {topic_alias}.description,
-          d_{topic_alias}.injected = true, d_{topic_alias}.injection_batch = $batch,
-          d_{topic_alias}.created_by = 'eval_injection'
-    MERGE ({topic_alias})-[:HAS_TYPE]->(ty_{topic_alias})
-    MERGE (ty_{topic_alias})-[:HAS_DESCRIPTION]->(d_{topic_alias})
-    """
+# Create a Topic (with given props) + a Chunk that MENTIONS it, embedding the
+# chunk text. `merge_props` adds keys to the Topic's MERGE pattern so that two
+# same-NAME topics (the CONFLICTED pair) stay distinct instead of collapsing.
+def make_topic_chunk(session, name, text, source_type, conf, created_at, chunk_id,
+                     merge_props=None):
+    vec = embed(text)
+    if not vec:
+        sys.exit(f"embedding failed for {name!r}")
+    merge_extra = ""
+    params = {}
+    if merge_props:
+        for i, (k, v) in enumerate(merge_props.items()):
+            merge_extra += f", `{k}`: $mk{i}"
+            params[f"mk{i}"] = v
+    session.run(
+        f"""
+        MERGE (t:{ENTITY_LABEL} {{{NAME_PROP}: $name{merge_extra}}})
+        SET t.description = $text, t.source_type = $src, t.confidence_score = $conf,
+            t.created_at = $created_at, t.created_by = 'eval_injection',
+            t.injected = true, t.injection_batch = $batch
+        MERGE (c:Chunk {{chunk_id: $chunk_id}})
+        SET c.text = $text, c.embedding = $vec, c.created_by = 'eval_injection',
+            c.injected = true, c.injection_batch = $batch
+        MERGE (c)-[:MENTIONS]->(t)
+        """,
+        name=name, text=text, src=source_type, conf=conf, created_at=created_at,
+        vec=vec, chunk_id=chunk_id, batch=BATCH, **params)
 
 
 def main() -> None:
@@ -76,88 +79,59 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    old = now_utc() - datetime.timedelta(days=OUTDATED_DAYS * 3)  # safely stale
-    fresh = now_utc() - datetime.timedelta(days=1)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    old = now - datetime.timedelta(days=OUTDATED_DAYS * 3)
+    fresh = now - datetime.timedelta(days=1)
 
-    plan = [
-        ("OUTDATED node", f"'Quarterly Backup Procedure' created_at={old.date()} (2-hop)"),
-        ("SUPERSEDED pair",
-         f"'Lab Access Policy v1' ({old.date()}) -[:{SUPERSEDES_REL}]-> "
-         f"'Lab Access Policy v2' ({fresh.date()}) (2-hop each)"),
-        ("CONFLICTED pair",
-         "two 'Server Room Temperature Setpoint' nodes (19C vs 24C), same name (2-hop each)"),
-    ]
     if args.dry_run:
-        for kind, desc in plan:
-            print(f"WOULD CREATE {kind}: {desc}")
+        print(f"WOULD CREATE OUTDATED   : 'Quarterly Backup Procedure' created_at={old.date()} (Chunk->MENTIONS)")
+        print(f"WOULD CREATE SUPERSEDED : 'Lab Access Policy v1'({old.date()}) -[:{SUPERSEDES_REL}]-> v2({fresh.date()})")
+        print(f"WOULD CREATE CONFLICTED : two 'Server Room Temperature Setpoint' (19C vs 24C), same name")
+        print(f"\nembedding via {EMBED_MODEL} @ {EMBED_URL}")
         return
 
     uri = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
-    auth = (os.environ.get("NEO4J_USERNAME", "neo4j"),
-            os.environ.get("NEO4J_PASSWORD", ""))
+    auth = (os.environ.get("NEO4J_USERNAME", "neo4j"), os.environ.get("NEO4J_PASSWORD", ""))
     db = os.environ.get("NEO4J_DATABASE", "neo4j")
 
     driver = GraphDatabase.driver(uri, auth=auth)
     with driver.session(database=db) as s:
-        # 1) OUTDATED -----------------------------------------------------
-        s.run(
-            f"""
-            MERGE (t:{ENTITY_LABEL} {{{NAME_PROP}: 'Quarterly Backup Procedure'}})
-            SET t.description = 'The quarterly data backup runs on the first '
-                              + 'Friday of the quarter and archives to the NAS '
-                              + 'pool. (Synthetic: intentionally stale.)',
-                t.source_type = 'meeting', t.confidence_score = 0.8,
-                t.created_at = $old, t.created_by = 'eval_injection',
-                t.injected = true, t.injection_batch = $batch
-            {subgraph('t', 'Injected Classification: Backup', 'Injected Description: Quarterly Backup')}
-            """, old=old, batch=BATCH)
-        print("created OUTDATED (2-hop): Quarterly Backup Procedure")
+        # 1) OUTDATED
+        make_topic_chunk(s, "Quarterly Backup Procedure",
+                         "The quarterly data backup runs on the first Friday of the quarter "
+                         "and archives to the NAS pool. (Synthetic: intentionally stale.)",
+                         "meeting", 0.8, old, "inject_temporal_backup")
+        print("created OUTDATED (Chunk->MENTIONS): Quarterly Backup Procedure")
 
-        # 2) SUPERSEDED ---------------------------------------------------
-        s.run(
-            f"""
-            MERGE (v1:{ENTITY_LABEL} {{{NAME_PROP}: 'Lab Access Policy v1'}})
-            SET v1.description = 'Lab access requires a physical key signed out '
-                               + 'from the department office. (Synthetic old.)',
-                v1.source_type = 'paper', v1.confidence_score = 0.9,
-                v1.created_at = $old, v1.created_by = 'eval_injection',
-                v1.injected = true, v1.injection_batch = $batch
-            MERGE (v2:{ENTITY_LABEL} {{{NAME_PROP}: 'Lab Access Policy v2'}})
-            SET v2.description = 'Lab access now uses the campus smart-card '
-                               + 'system; physical keys are retired. (Synthetic new.)',
-                v2.source_type = 'paper', v2.confidence_score = 0.9,
-                v2.created_at = $fresh, v2.created_by = 'eval_injection',
-                v2.injected = true, v2.injection_batch = $batch
-            {subgraph('v1', 'Injected Classification: Access v1', 'Injected Description: Lab Access v1')}
-            {subgraph('v2', 'Injected Classification: Access v2', 'Injected Description: Lab Access v2')}
-            MERGE (v1)-[r:{SUPERSEDES_REL}]->(v2)
-            SET r.injected = true
-            """, old=old, fresh=fresh, batch=BATCH)
-        print(f"created SUPERSEDED (2-hop): v1 -[:{SUPERSEDES_REL}]-> v2")
+        # 2) SUPERSEDED  (v1 old -> v2 new)
+        make_topic_chunk(s, "Lab Access Policy v1",
+                         "Lab access requires a physical key signed out from the department "
+                         "office. (Synthetic old policy.)", "paper", 0.9, old,
+                         "inject_temporal_access_v1")
+        make_topic_chunk(s, "Lab Access Policy v2",
+                         "Lab access now uses the campus smart-card system; physical keys are "
+                         "retired. (Synthetic new policy.)", "paper", 0.9, fresh,
+                         "inject_temporal_access_v2")
+        s.run(f"""
+            MATCH (v1:{ENTITY_LABEL} {{{NAME_PROP}: 'Lab Access Policy v1'}})
+            MATCH (v2:{ENTITY_LABEL} {{{NAME_PROP}: 'Lab Access Policy v2'}})
+            MERGE (v1)-[r:{SUPERSEDES_REL}]->(v2) SET r.injected = true
+        """)
+        print(f"created SUPERSEDED (Chunk->MENTIONS): v1 -[:{SUPERSEDES_REL}]-> v2")
 
-        # 3) CONFLICTED (same name, different description) ----------------
-        s.run(
-            f"""
-            MERGE (a:{ENTITY_LABEL} {{{NAME_PROP}: 'Server Room Temperature Setpoint', conflict_variant: 'A'}})
-            SET a.description = 'The server room temperature setpoint is 19 '
-                              + 'degrees C per facilities guidance. (Synthetic A.)',
-                a.source_type = 'meeting', a.confidence_score = 0.8,
-                a.created_at = $fresh, a.created_by = 'eval_injection',
-                a.injected = true, a.injection_batch = $batch
-            MERGE (b:{ENTITY_LABEL} {{{NAME_PROP}: 'Server Room Temperature Setpoint', conflict_variant: 'B'}})
-            SET b.description = 'The server room temperature setpoint is 24 '
-                              + 'degrees C to save energy. (Synthetic B.)',
-                b.source_type = 'meeting', b.confidence_score = 0.8,
-                b.created_at = $fresh, b.created_by = 'eval_injection',
-                b.injected = true, b.injection_batch = $batch
-            {subgraph('a', 'Injected Classification: Setpoint A', 'Injected Description: Setpoint 19C')}
-            {subgraph('b', 'Injected Classification: Setpoint B', 'Injected Description: Setpoint 24C')}
-            """, fresh=fresh, batch=BATCH)
-        print("created CONFLICTED (2-hop): two same-name 'Server Room Temperature Setpoint'")
+        # 3) CONFLICTED (same name, different description/variant)
+        make_topic_chunk(s, "Server Room Temperature Setpoint",
+                         "The server room temperature setpoint is 19 degrees C per facilities "
+                         "guidance. (Synthetic conflict A.)", "meeting", 0.8, fresh,
+                         "inject_temporal_setpoint_a", merge_props={"conflict_variant": "A"})
+        make_topic_chunk(s, "Server Room Temperature Setpoint",
+                         "The server room temperature setpoint is 24 degrees C to save energy. "
+                         "(Synthetic conflict B.)", "meeting", 0.8, fresh,
+                         "inject_temporal_setpoint_b", merge_props={"conflict_variant": "B"})
+        print("created CONFLICTED (Chunk->MENTIONS): two same-name 'Server Room Temperature Setpoint'")
 
     driver.close()
-    print(f"\nBatch tag: {BATCH}")
-    print("Remove all: MATCH (n {injected: true}) DETACH DELETE n")
+    print(f"\nBatch tag: {BATCH}\nRemove all: MATCH (n {{injected: true}}) DETACH DELETE n")
 
 
 if __name__ == "__main__":

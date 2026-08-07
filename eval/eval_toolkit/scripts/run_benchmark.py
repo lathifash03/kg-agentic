@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import re
 import sys
 import time
 from collections import defaultdict
@@ -36,20 +37,23 @@ from kg_agent.config import get_config  # noqa: E402
 from kg_agent.neo4j_client import Neo4jClient  # noqa: E402
 
 FAILING_TEMPORAL = {"OUTDATED", "SUPERSEDED", "CONFLICTED"}
-NO_INFO_MARKERS = [
-    "no supporting context", "does not contain", "not contain information",
-    "no information", "did not produce", "could not find", "cannot find",
-    "not found", "no relevant information", "does not mention", "not mentioned",
-    "no data", "insufficient", "does not give information",
-    "does not provide", "do not have enough", "not have enough data",
-    "does not specify", "no details about", "not available in the",
+# Regex (not exact substrings) so intervening words don't defeat the match -
+# e.g. "does not DIRECTLY provide information", "no SPECIFIC information".
+NO_INFO_PATTERNS = [
+    r"\b(do(es)?n'?t|do(es)?\snot|did\snot|didn'?t|cannot|can'?t|could\snot|couldn'?t)\b"
+    r".{0,25}\b(contain|provide|give|have|mention|specify|include|cover|address|find|discuss)\b",
+    r"\bno\b.{0,25}\b(information|details?|data|mention|specifics?|content)\b",
+    r"\bnot\b.{0,20}\b(found|available|mentioned|present|specified|provided|contained)\b",
+    r"\b(insufficient|no supporting)\b.{0,15}\b(context|information|data)\b",
+    r"did not produce|no relevant information|not enough (information|data|context)",
 ]
+_NO_INFO_RE = [re.compile(p) for p in NO_INFO_PATTERNS]
 
 
 def predict_outcome(result) -> str:
     """Map a VerifiedAnswer to one of the four expected_gate_outcome labels."""
     answer = (result.answer or "").lower()
-    is_no_info = any(m in answer for m in NO_INFO_MARKERS)
+    is_no_info = any(rx.search(answer) for rx in _NO_INFO_RE)
 
     if result.passed:
         return "PASS"

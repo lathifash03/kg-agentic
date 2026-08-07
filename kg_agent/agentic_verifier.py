@@ -366,7 +366,7 @@ def _embed_query_ollama(query: str, config: Config) -> Optional[List[float]]:
 
     Uses the model the chunks were embedded with so vectors are comparable.
     """
-    url = f"{config.retrieval.ollama_url}/api/embeddings"
+    url = f"{config.retrieval.effective_embed_url}/api/embeddings"
     payload = json.dumps({"model": config.retrieval.embed_model, "prompt": query}).encode()
     req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
     try:
@@ -445,13 +445,19 @@ def retrieve_vector(client: Neo4jClient, config: Config, query: str, k: int) -> 
     text_prop = config.retrieval.chunk_text_property
     cypher = f"""
         CALL db.index.vector.queryNodes($index, $k, $vec) YIELD node AS c, score
-        WHERE c:{chunk_label}
+        WHERE c:{chunk_label} AND score >= $min_score
         OPTIONAL MATCH {pattern}
         RETURN c.{text_prop} AS text, score, collect(DISTINCT e.{client._name_prop}) AS entity_names
         ORDER BY score DESC
     """
     try:
-        rows = client.run_read(cypher, index=config.retrieval.vector_index_name, k=fetch_k, vec=vec)
+        rows = client.run_read(
+            cypher,
+            index=config.retrieval.vector_index_name,
+            k=fetch_k,
+            vec=vec,
+            min_score=config.retrieval.vector_min_score,
+        )
     except ClientError as exc:
         # The configured vector index may not exist (or not cover the chunk
         # label) on this graph - a config/shape mismatch, not a transient
@@ -527,9 +533,16 @@ def retrieve(
 
     if strategy == "vector" and config.retrieval.prefer_vector:
         ctx = retrieve_vector(client, config, query, k)
-        if ctx is not None and ctx.chunks:
-            return ctx
-        # graceful fallback when the embedding model is not available
+        if ctx is not None:
+            if ctx.chunks:
+                return ctx
+            # Empty vector result: fall back to keyword ONLY when no similarity
+            # threshold is in force. With a threshold set, an empty result means
+            # "nothing was relevant enough" - honour that (so an out-of-scope
+            # query yields no context) instead of flooding via keyword.
+            if config.retrieval.vector_min_score > 0:
+                return ctx
+        # ctx is None -> embedding/index unavailable; degrade to keyword.
         return retrieve_keyword(client, config, query, k)
     return retrieve_keyword(client, config, query, k)
 

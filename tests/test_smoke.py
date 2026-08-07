@@ -683,6 +683,47 @@ def test_retrieve_vector_filters_by_configured_chunk_label(monkeypatch):
     assert "WHERE c:`Description`" in cypher
 
 
+def test_effective_embed_url_falls_back_to_ollama_url():
+    """KG_EMBED_URL overrides the embed host; empty reuses OLLAMA_URL."""
+    from kg_agent.config import RetrievalConfig
+
+    assert RetrievalConfig(ollama_url="http://main:11434", embed_url="").effective_embed_url == (
+        "http://main:11434"
+    )
+    assert RetrievalConfig(
+        ollama_url="http://main:11434", embed_url="http://embed:11434"
+    ).effective_embed_url == "http://embed:11434"
+
+
+def test_similarity_threshold_suppresses_keyword_fallback(monkeypatch):
+    """With a threshold set, an empty vector result must NOT flood back via keyword."""
+    from kg_agent import agentic_verifier as av
+    from kg_agent.agentic_verifier import RetrievedContext
+    from kg_agent.config import get_config
+
+    cfg = get_config()
+    cfg.retrieval.prefer_vector = True
+    empty_vec = RetrievedContext(node_names=[], chunks=[], strategy="vector")
+    monkeypatch.setattr(av, "retrieve_vector", lambda *a, **k: empty_vec)
+    calls = {"kw": 0}
+
+    def fake_keyword(*a, **k):
+        calls["kw"] += 1
+        return RetrievedContext(node_names=["X"], chunks=["kw"], strategy="keyword")
+
+    monkeypatch.setattr(av, "retrieve_keyword", fake_keyword)
+
+    # threshold OFF -> empty vector degrades to keyword (old behaviour)
+    cfg.retrieval.vector_min_score = 0.0
+    r0 = av.retrieve(None, cfg, "q", "vector", 5)
+    assert r0.strategy == "keyword" and calls["kw"] == 1
+
+    # threshold ON -> empty vector is honoured; keyword NOT called again
+    cfg.retrieval.vector_min_score = 0.6
+    r1 = av.retrieve(None, cfg, "q", "vector", 5)
+    assert r1.strategy == "vector" and r1.chunks == [] and calls["kw"] == 1
+
+
 def test_context_for_names_against_nabhyla_shaped_rows():
     """AgenticVerifier._context_for_names uses the same configurable pattern
     for the caller-supplied-names path (used on a fixed first retrieval).

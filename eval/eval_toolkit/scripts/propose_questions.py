@@ -57,30 +57,26 @@ def main() -> None:
 
     candidates = []
     with driver.session(database=db) as s:
-        # ---- (a) richest real nodes, excluding injected ones -----------
-        # ADAPTED to Nabhyla's schema: the substantive text lives on :Description
-        # nodes two hops from the Topic (Topic-[:HAS_TYPE]->Type-[:HAS_DESCRIPTION]
-        # ->Description {text}), not on a `description` property of the Topic.
+        # ---- (a) answerable-good candidates, one per DISTINCT Topic -----
+        # ADAPTED to Nabhyla's schema: text lives on :Description nodes two hops
+        # from the Topic (Topic-[:HAS_TYPE]->Type-[:HAS_DESCRIPTION]->Description).
         #
-        # DEDUP BY CONTENT: the shared-Type fan-out makes MANY Topics point at the
-        # SAME Description paragraph (e.g. a comparison of assignment methods). We
-        # group by the Description TEXT and keep ONE representative Topic per
-        # distinct paragraph - otherwise 13 "different" questions would test the
-        # same content (false diversity). The representative is the Topic with the
-        # LONGEST name, a cheap proxy that favours a whole topic
-        # ("Comparison Of Assignment Methods") over a fragment ("Pile On").
+        # NOTE ON THE STRUCTURE (see cardinality diagnostic): the Topic<->
+        # Description mapping is heavily many-to-many because Type is a COARSE
+        # shared classification (one Description reaches ~27 Topics of the same
+        # Type). There is no clean 1:1 pairing to dedup on. So we emit one row
+        # per DISTINCT Topic that has any linked Description, ranked by the
+        # richest Description available to it, and leave the human to pick
+        # natural, standalone topics (and drop fragment-y names) during curation.
         rows = s.run(
             f"""
             MATCH (n:{ENTITY_LABEL})-[:HAS_TYPE]->(:Type)-[:HAS_DESCRIPTION]->(d:{CHUNK_LABEL})
             WHERE n.injected IS NULL AND d.{TEXT_PROP} IS NOT NULL
-            WITH d.{TEXT_PROP} AS text, collect(DISTINCT n) AS topics
-            WITH text, topics,
-                 reduce(best = head(topics), t IN topics |
-                     CASE WHEN size(t.{NAME_PROP}) > size(best.{NAME_PROP})
-                          THEN t ELSE best END) AS rep
-            RETURN elementId(rep) AS id, rep.{NAME_PROP} AS name,
-                   text AS desc, size(text) AS len
-            ORDER BY len DESC LIMIT $k
+            WITH n, max(size(d.{TEXT_PROP})) AS best_len,
+                 head(collect(d.{TEXT_PROP})) AS sample
+            RETURN elementId(n) AS id, n.{NAME_PROP} AS name,
+                   sample AS desc, best_len AS len
+            ORDER BY best_len DESC, name LIMIT $k
             """, k=args.n_a)
         for r in rows:
             candidates.append({

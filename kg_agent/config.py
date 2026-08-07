@@ -277,7 +277,21 @@ class RetrievalConfig:
     # Must match the model the chunks were embedded with (mxbai-embed-large here).
     embed_model: str = field(default_factory=lambda: _env_str("KG_EMBED_MODEL", "mxbai-embed-large"))
     ollama_url: str = field(default_factory=lambda: _env_str("OLLAMA_URL", "http://localhost:11434"))
+    # Dedicated Ollama host for EMBEDDINGS. Empty -> reuse OLLAMA_URL. Lets the
+    # embed model (e.g. mxbai-embed-large) live on a different server from the
+    # chat model - the query MUST be embedded with the same model the chunks
+    # were, or vector search returns garbage.
+    embed_url: str = field(default_factory=lambda: _env_str("KG_EMBED_URL", ""))
+    # Drop vector hits whose similarity score is below this (0.0 = keep all).
+    # Neo4j cosine scores are in [0, 1]; raise this to stop an out-of-scope query
+    # from dragging in the top-k of loosely-related chunks.
+    vector_min_score: float = field(default_factory=lambda: _env_float("KG_VECTOR_MIN_SCORE", 0.0))
     prefer_vector: bool = field(default_factory=lambda: _env_bool("KG_PREFER_VECTOR", True))
+
+    @property
+    def effective_embed_url(self) -> str:
+        """Ollama URL used for embeddings: KG_EMBED_URL if set, else OLLAMA_URL."""
+        return self.embed_url or self.ollama_url
 
     # -- Text-bearing node schema (how "a chunk" and "chunk mentions entity" are
     # -- named in *this* graph). Defaults reproduce the original hardcoded

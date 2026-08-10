@@ -1,0 +1,24 @@
+# Produksi: HANYA service API kg-agent. Neo4j & Ollama adalah service EKSTERNAL
+# (KG Nabhyla + server Ollama) yang dijangkau lewat .env - tidak dibundel.
+#
+# Pakai:
+#   cp .env.docker.example .env      # isi endpoint & profil skema
+#   docker compose -f docker-compose.prod.yml up -d --build
+#   curl http://localhost:8000/health
+#
+# Butuh Docker yang seccomp-nya mengizinkan clone3 (Docker Desktop lama gagal -
+# "can't start new thread"; upgrade dulu).
+services:
+  agent:
+    build: .
+    image: kg-agent-api
+    ports:
+      - "8000:8000"          # API yang diakses Rio (module 5)
+    env_file:
+      - .env
+    restart: unless-stopped   # selalu hidup untuk meeting
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)\""]
+      interval: 30s
+      timeout: 8s
+      retries: 5

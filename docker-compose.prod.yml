@@ -13,7 +13,7 @@ services:
     build: .
     image: kg-agent-api
     ports:
-      - "8000:8000"          # API yang diakses Rio (module 5)
+      - "8003:8000"          # HOST:8003 (port "lab-brain-agent") -> container:8000. 8000 sudah dipakai lab-brain-backend di server. Rio pakai http://<host>:8003
     env_file:
       - .env
     restart: unless-stopped   # selalu hidup untuk meeting

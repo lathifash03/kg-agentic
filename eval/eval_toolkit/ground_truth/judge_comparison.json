@@ -1,0 +1,47 @@
+{
+  "threshold": 0.7,
+  "per_judge": {
+    "hermes3:3b": {
+      "pred": [
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0
+      ],
+      "accuracy": 0.917,
+      "kappa": 0.833,
+      "mean_faithful": 0.648,
+      "mean_unfaithful": 0.0,
+      "gap": 0.648
+    },
+    "mock-lexical": {
+      "pred": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "accuracy": 0.583,
+      "kappa": 0.167,
+      "mean_faithful": 0.561,
+      "mean_unfaithful": 0.235,
+      "gap": 0.326
+    }
+  }
+}

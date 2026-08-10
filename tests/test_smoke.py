@@ -683,6 +683,21 @@ def test_retrieve_vector_filters_by_configured_chunk_label(monkeypatch):
     assert "WHERE c:`Description`" in cypher
 
 
+def test_parse_faithfulness_handles_braceless_json():
+    """Regression: hermes3 emits brace-less JSON; the old parser dropped it to 0.0."""
+    from kg_agent.agentic_verifier import _parse_faithfulness
+
+    # full object
+    assert _parse_faithfulness('{"faithfulness": 0.9, "verdict": "ok"}')["faithfulness"] == 0.9
+    # brace-LESS (the real hermes3 quirk) - must NOT collapse to 0.0
+    braceless = '"faithfulness": 0.8, "verdict": "Supported", "unsupported_claims": []'
+    assert _parse_faithfulness(braceless)["faithfulness"] == 0.8
+    # number embedded in prose
+    assert _parse_faithfulness('Here is my verdict: "faithfulness": 0.7 done')["faithfulness"] == 0.7
+    # genuinely unparseable -> 0.0
+    assert _parse_faithfulness("the answer looks fine to me")["faithfulness"] == 0.0
+
+
 def test_effective_embed_url_falls_back_to_ollama_url():
     """KG_EMBED_URL overrides the embed host; empty reuses OLLAMA_URL."""
     from kg_agent.config import RetrievalConfig

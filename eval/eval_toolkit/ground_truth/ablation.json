@@ -1,0 +1,72 @@
+{
+  "min_trust": 0.4,
+  "min_faith": 0.7,
+  "configs": [
+    {
+      "config": "all gates ON (baseline)",
+      "false_pass": 0,
+      "false_pass_rate": 0.0,
+      "false_pass_ids": [],
+      "false_block": 0,
+      "false_block_rate": 0.0
+    },
+    {
+      "config": "trust gate OFF",
+      "false_pass": 8,
+      "false_pass_rate": 0.571,
+      "false_pass_ids": [
+        "b01",
+        "b03",
+        "b04",
+        "b05",
+        "b06",
+        "c02",
+        "c03",
+        "c05"
+      ],
+      "false_block": 0,
+      "false_block_rate": 0.0
+    },
+    {
+      "config": "temporal gate OFF",
+      "false_pass": 1,
+      "false_pass_rate": 0.071,
+      "false_pass_ids": [
+        "d02"
+      ],
+      "false_block": 0,
+      "false_block_rate": 0.0
+    },
+    {
+      "config": "faithfulness gate OFF",
+      "false_pass": 0,
+      "false_pass_rate": 0.0,
+      "false_pass_ids": [],
+      "false_block": 0,
+      "false_block_rate": 0.0
+    },
+    {
+      "config": "ALL gates OFF (no verification)",
+      "false_pass": 14,
+      "false_pass_rate": 1.0,
+      "false_pass_ids": [
+        "b01",
+        "b02",
+        "b03",
+        "b04",
+        "b05",
+        "b06",
+        "c01",
+        "c02",
+        "c03",
+        "c04",
+        "c05",
+        "d01",
+        "d02",
+        "d03"
+      ],
+      "false_block": 0,
+      "false_block_rate": 0.0
+    }
+  ]
+}

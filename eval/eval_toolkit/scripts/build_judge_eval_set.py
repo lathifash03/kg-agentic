@@ -46,16 +46,31 @@ def main() -> None:
             base.append({"question": q, "context": context, "answer": answer})
             print(f"  built: {q[:50]!r}  ctx={len(context)}ch answer={len(answer)}ch")
 
+    # Clearly-fabricated answers: specific claims NOT supported by ANY RMFS
+    # thesis chunk (numbers/entities from unrelated domains). Sharper than an
+    # on-domain answer-swap, which a judge rightly rates "supported" for
+    # overlapping content.
+    FABRICATED = [
+        "The system was trained on 4.2 million ImageNet photographs and reached "
+        "98.7% top-1 accuracy using a ResNet-50 backbone on 8 NVIDIA A100 GPUs.",
+        "According to the sources, the optimal warehouse temperature is 4 degrees "
+        "Celsius and forklifts must be recharged with hydrogen fuel cells every 90 minutes.",
+        "The study concludes that Bitcoin mining difficulty doubled in Q3 and that "
+        "the CRISPR-Cas9 protocol requires a 37-degree incubation for 12 hours.",
+        "The results show the vaccine reached 91% efficacy across 43,000 trial "
+        "participants over a six-month double-blind study.",
+        "The paper reports that the Boeing 787 wing flex tolerance is 7.6 meters "
+        "and that quarterly revenue grew 23% year over year to $4.1 billion.",
+        "The authors recommend planting the wheat seeds 3 cm deep with 20 cm row "
+        "spacing and irrigating twice weekly during the germination phase.",
+    ]
     pairs = []
-    n = len(base)
     for i, b in enumerate(base):
         pairs.append({"id": f"f{i:02d}", "question": b["question"], "context": b["context"],
                       "answer": b["answer"], "construct_label": 1, "pair_type": "faithful"})
-        # unfaithful: this context + an answer from a different question
-        j = (i + 1) % n
         pairs.append({"id": f"u{i:02d}", "question": b["question"], "context": b["context"],
-                      "answer": base[j]["answer"], "construct_label": 0,
-                      "pair_type": f"unfaithful(answer from {base[j]['question'][:30]!r})"})
+                      "answer": FABRICATED[i % len(FABRICATED)], "construct_label": 0,
+                      "pair_type": "unfaithful(fabricated off-domain claims)"})
 
     out = pathlib.Path("ground_truth/judge_pairs.jsonl")
     out.parent.mkdir(parents=True, exist_ok=True)

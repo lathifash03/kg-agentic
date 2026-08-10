@@ -907,15 +907,34 @@ class AgenticVerifier:
 
 
 def _parse_faithfulness(raw: str) -> Dict[str, Any]:
-    """Best-effort parse of the faithfulness judge's JSON response."""
+    """Best-effort parse of the faithfulness judge's JSON response.
+
+    Tolerant of two common model quirks: (1) a full ``{...}`` object embedded in
+    prose, and (2) brace-LESS output - some instruct models (e.g. hermes3) emit
+    ``"faithfulness": 0.8, "verdict": ...`` with no enclosing braces, which the
+    old ``\\{.*\\}`` regex silently dropped to 0.0 and needlessly tripped the
+    gate. Falls back to a direct numeric extraction as a last resort.
+    """
+    candidates = []
     m = re.search(r"\{.*\}", raw, re.DOTALL)
     if m:
+        candidates.append(m.group(0))
+    # Wrap brace-less "key": value, ... output so it parses as an object.
+    stripped = raw.strip().rstrip(",")
+    if stripped and not stripped.startswith("{"):
+        candidates.append("{" + stripped + "}")
+    for cand in candidates:
         try:
-            data = json.loads(m.group(0))
+            data = json.loads(cand)
             data["faithfulness"] = max(0.0, min(1.0, float(data.get("faithfulness", 0.0))))
             return data
         except (ValueError, TypeError):
-            pass
+            continue
+    # Last resort: pull the number straight out of the text.
+    m = re.search(r'faithfulness"?\s*:\s*([01](?:\.\d+)?)', raw)
+    if m:
+        return {"faithfulness": max(0.0, min(1.0, float(m.group(1)))),
+                "verdict": "regex-extracted", "unsupported_claims": []}
     return {"faithfulness": 0.0, "verdict": "unparseable", "unsupported_claims": []}
 
 

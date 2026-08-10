@@ -29,6 +29,12 @@ from kg_agent.agentic_verifier import (  # noqa: E402
 from kg_agent.config import get_config  # noqa: E402
 
 LOCAL = os.environ.get("KG_JUDGE_OLLAMA_URL", "http://localhost:11434")
+# Which local ollama judge models to compare (comma-separated). Default skips
+# the slow 8b so the fan stays quiet; add it via KG_E2_JUDGES when on a GPU host.
+JUDGE_MODELS = [m.strip() for m in os.environ.get("KG_E2_JUDGES", "hermes3:3b").split(",") if m.strip()]
+# Truncate context handed to the judge - a 4000-char context makes 8b time out
+# on CPU, and the support signal lives in the first passages anyway.
+CTX_CHARS = int(os.environ.get("KG_E2_CTX_CHARS", "1800"))
 
 
 def cohens_kappa(a, b):
@@ -44,7 +50,7 @@ def cohens_kappa(a, b):
 
 
 def score(judge, answer, context):
-    raw = judge.complete(_FAITHFULNESS_SYSTEM, f"ANSWER: {answer}\n\nSOURCES: {context}")
+    raw = judge.complete(_FAITHFULNESS_SYSTEM, f"ANSWER: {answer}\n\nSOURCES: {context[:CTX_CHARS]}")
     return _parse_faithfulness(raw).get("faithfulness", 0.0)
 
 
@@ -53,11 +59,8 @@ def main() -> None:
     thr = cfg.verifier.min_faithfulness
     pairs = [json.loads(l) for l in open("ground_truth/judge_pairs.jsonl") if l.strip()]
 
-    judges = {
-        "hermes3:3b": OllamaLLMClient(cfg, model="hermes3:3b", ollama_url=LOCAL),
-        "hermes3:8b": OllamaLLMClient(cfg, model="hermes3:8b", ollama_url=LOCAL),
-        "mock-lexical": MockLLMClient(),
-    }
+    judges = {m: OllamaLLMClient(cfg, model=m, ollama_url=LOCAL) for m in JUDGE_MODELS}
+    judges["mock-lexical"] = MockLLMClient()
     if cfg.llm.api_key and cfg.llm.api_key != "isi_api_key_mu":
         try:
             from kg_agent.agentic_verifier import GroqLLMClient

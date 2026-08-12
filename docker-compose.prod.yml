@@ -4,10 +4,45 @@
 # Pakai:
 #   cp .env.docker.example .env      # isi endpoint & profil skema
 #   docker compose -f docker-compose.prod.yml up -d --build
-#   curl http://localhost:8000/health
+#   docker compose -f docker-compose.prod.yml exec agent \
+#       python scripts/smoke_endpoint.py --url http://localhost:8000
 #
-# Butuh Docker yang seccomp-nya mengizinkan clone3 (Docker Desktop lama gagal -
-# "can't start new thread"; upgrade dulu).
+# ---------------------------------------------------------------------------
+# MENJANGKAU OLLAMA DARI DALAM CONTAINER - BACA SEBELUM DEPLOY
+# ---------------------------------------------------------------------------
+# Di dalam container, `localhost` menunjuk container itu sendiri, BUKAN host.
+# Jadi OLLAMA_URL=http://localhost:11434 yang benar untuk uvicorn native akan
+# gagal total begitu dipindah ke Docker.
+#
+# Dan mengganti hostname saja belum cukup: secara default Ollama hanya listen
+# di 127.0.0.1, sehingga ia menolak koneksi dari container APA PUN alamat yang
+# dipakai - baik host.docker.internal maupun IP tailscale host. Pilih satu:
+#
+#   (A) network_mode: host  - PALING SEDERHANA untuk server Linux yang Ollama-nya
+#       co-located. Container memakai network host apa adanya, `localhost:11434`
+#       kembali benar, dan tidak ada yang perlu diubah di Ollama. Caranya: hapus
+#       blok `ports:` dan `extra_hosts:` di bawah, lalu tambahkan
+#           network_mode: host
+#           command: ["uvicorn","kg_agent.api:app","--host","0.0.0.0","--port","8003"]
+#
+#   (B) Buka bind Ollama - set OLLAMA_HOST=0.0.0.0 pada service Ollama, lalu di
+#       .env pakai IP tailscale host (http://100.118.203.111:11434). Pertahankan
+#       konfigurasi bridge di bawah. Konsekuensinya Ollama ikut terekspos ke
+#       tailnet, jadi pastikan itu memang diinginkan.
+#
+# Neo4j lewat IP tailscale (100.x) tidak terpengaruh - itu IP biasa yang
+# dirutekan host, bukan localhost.
+#
+# CATATAN UJI: konfigurasi bridge di bawah sudah diuji dan LULUS di macOS
+# (Docker Desktop memperlakukan host.docker.internal secara khusus sehingga
+# tembus ke service yang listen di 127.0.0.1 host). Perilaku itu TIDAK berlaku
+# di Docker Linux. Di citi-cygnus, pilih (A) atau (B) dan verifikasi dengan
+# scripts/smoke_endpoint.py - jangan berasumsi ini jalan begitu saja.
+# ---------------------------------------------------------------------------
+#
+# Butuh Docker yang seccomp-nya mengizinkan clone3 kalau memakai base image
+# bookworm. Dockerfile sengaja memakai bullseye supaya build tetap jalan di
+# Docker lama (diuji: 20.10.2 gagal dengan bookworm, berhasil dengan bullseye).
 services:
   agent:
     build: .
@@ -16,9 +51,11 @@ services:
       - "8003:8000"          # HOST:8003 (port "lab-brain-agent") -> container:8000. 8000 sudah dipakai lab-brain-backend di server. Rio pakai http://<host>:8003
     env_file:
       - .env
+    extra_hosts:
+      # Supaya container bisa menjangkau Ollama/Neo4j yang jalan di host.
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped   # selalu hidup untuk meeting
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)\""]
-      interval: 30s
-      timeout: 8s
-      retries: 5
+    # healthcheck sengaja TIDAK didefinisikan di sini - image sudah membawanya
+    # (lihat HEALTHCHECK di Dockerfile), sehingga `docker run` tanpa compose pun
+    # tetap terpantau. Definisi di compose akan menimpa milik image dan membuat
+    # dua tempat yang harus diubah bersamaan.

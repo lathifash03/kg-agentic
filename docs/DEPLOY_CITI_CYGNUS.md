@@ -168,21 +168,50 @@ LLM memilih tool. `POST /tools/ingest_meeting` langsung, dan `POST /query`
 dengan `{"agentic": true}`, dua-duanya melewatinya. `KG_READ_ONLY` yang menutup
 keduanya.
 
-## Docker atau native?
+## Jalur Docker
 
-Runbook di atas memakai **uvicorn native**, dan itu tetap pilihan yang
-disarankan. `docker-compose.prod.yml` tersedia dan sudah dipetakan `8003:8000`,
-tapi build image-nya **gagal di Docker lama** — diuji di Docker 20.10.2 dan
-berhenti di `pip install` dengan `RuntimeError: can't start new thread` (bug
-seccomp/`clone3`). Kalau citi-cygnus punya Docker ≥ 23, jalur Docker aman:
+Base image sekarang `python:3.11-slim-bullseye`, jadi bug seccomp/`clone3` yang
+dulu menggagalkan build di Docker lama **sudah tidak berlaku** — build diuji
+berhasil di Docker 20.10.2. Tidak perlu upgrade Docker.
+
+Yang sudah diverifikasi end-to-end pada image ini (di macOS):
+
+| | |
+|---|---|
+| `docker build` | lulus, image 172 MB |
+| Container start + `/health` | `{"status":"ok","neo4j_connected":true,"read_only":true}` |
+| `HEALTHCHECK` bawaan image | `healthy` |
+| Berjalan sebagai non-root | `uid=10001(kgagent)` |
+| Retrieval nyata | 2 dokumen / 7 sumber |
+| Guard tulis | `ingest_meeting` → 403 |
+| `smoke_endpoint.py` | `VERDICT: WORKING` |
 
 ```bash
-cp .env.docker.example .env     # tinjau: NEO4J_URI, KG_EMBED_MODEL, KG_READ_ONLY
+cp .env.docker.example .env     # tinjau: NEO4J_URI, KG_EMBED_MODEL, KG_READ_ONLY, OLLAMA_URL
 docker compose -f docker-compose.prod.yml up -d --build
-curl http://localhost:8003/health
+docker compose -f docker-compose.prod.yml exec agent \
+    python scripts/smoke_endpoint.py --url http://localhost:8000
 ```
 
-Cek versinya dulu dengan `docker version --format '{{.Server.Version}}'`.
+### Satu hal yang WAJIB disesuaikan di Linux
+
+Ollama secara default hanya listen di `127.0.0.1`, sehingga **menolak koneksi
+dari container** — apa pun alamat yang dipakai. Konfigurasi bridge di compose
+lulus uji di macOS hanya karena Docker Desktop memperlakukan
+`host.docker.internal` secara khusus; **perilaku itu tidak ada di Docker Linux.**
+
+Di citi-cygnus pilih salah satu (keduanya dijelaskan di komentar
+`docker-compose.prod.yml`):
+
+- **(A) `network_mode: host`** — paling sederhana. Ollama tidak perlu diubah,
+  `localhost:11434` kembali benar. Hapus `ports:`/`extra_hosts:`, tambahkan
+  `network_mode: host` + `command:` yang bind ke 8003.
+- **(B) `OLLAMA_HOST=0.0.0.0`** pada service Ollama, lalu `.env` memakai
+  `http://100.118.203.111:11434`. Pertahankan bridge, tapi Ollama ikut terekspos
+  ke tailnet.
+
+Apa pun pilihannya, buktikan dengan `smoke_endpoint.py` — kalau Ollama tidak
+terjangkau, `/health` tetap hijau sementara setiap jawaban balik kosong.
 
 ## Menambah endpoint baru untuk Rio
 

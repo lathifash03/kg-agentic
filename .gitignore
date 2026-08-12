@@ -8,3 +8,4 @@ venv/
 .DS_Store
 neo4j_data/
 eval/eval_toolkit/backups/
+.env.thesis

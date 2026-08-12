@@ -5,6 +5,46 @@ RIGHT decision per question category. Labels describe the **expected gate
 outcome**, not free-form "correct answers" — that is what makes this
 tractable and auditable.
 
+## Restoring the graph these results refer to
+
+The thesis-style graph E1/E2/E3 were scored against **no longer exists on any
+live server** — the shared instance was rebuilt into a different corpus. It
+survives only as a JSON dump, which is what makes these numbers reproducible:
+
+    eval/eval_toolkit/backups/local_eval_snapshot_2026-08-12.json
+    355 nodes · 805 relationships · 116 embedded chunks (mxbai-embed-large)
+    20 synthetic injection nodes · trust 0.115-0.858 · all 4 temporal statuses
+
+That dump is **gitignored on purpose**: it carries full chunk text from a third
+party's thesis, and this repository is public. Keep it out of the remote.
+
+```bash
+# A second Neo4j, so the paper-corpus clone on 7687 survives untouched.
+# --security-opt seccomp=unconfined is REQUIRED on Docker < 23: the JVM calls
+# clone3(), the default seccomp profile rejects it, and the container dies with
+# the misleading "JAVA_HOME is not defined correctly".
+docker run -d --name kg-neo4j-thesis --security-opt seccomp=unconfined \
+    -p 7688:7687 -p 7475:7474 -e NEO4J_AUTH=neo4j/password123 neo4j:5
+
+python eval/eval_toolkit/scripts/clone_graph.py \
+    --source file://$(pwd)/eval/eval_toolkit/backups/local_eval_snapshot_2026-08-12.json \
+    --target bolt://localhost:7688
+
+set -a && source .env.thesis && set +a      # profile: port 7688 + mxbai
+```
+
+`.env.thesis` is also gitignored (local credentials); recreate it from the block
+in this file's git history, or copy `.env.server.example` and change
+`NEO4J_URI=bolt://localhost:7688` plus `KG_EMBED_MODEL=mxbai-embed-large`.
+
+**The embedding model is the trap.** This graph is embedded with
+`mxbai-embed-large`; the paper corpus uses `qwen3-embedding:0.6b`. Both are
+1024-dimensional, so pointing the wrong one at it raises no error at all —
+similarity scores just collapse to noise and retrieval returns nothing while
+`/health` stays green. Verify with:
+
+    MATCH (c:Chunk) RETURN DISTINCT c.embeddings_model, count(*)
+
 ## Prerequisites (in order)
 1. Answer-generation model produces non-empty answers (fix the qwen3-vl
    empty-answer issue first: set answer-gen to hermes3 in .env).

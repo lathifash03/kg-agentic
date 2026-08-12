@@ -1,0 +1,562 @@
+{
+  "summary": {
+    "n_questions": 12,
+    "retrieval_hit_rate": 1.0,
+    "top_paper_accuracy": 1.0,
+    "mean_chunk_precision": 0.933,
+    "mean_coverage": 0.944,
+    "evidence_present_rate": 1.0,
+    "items_with_forbidden_claims": [],
+    "gate_passed_rate": 0.0,
+    "mean_trust": 0.2,
+    "mean_faithfulness": 0.764,
+    "items_with_cross_paper_entities": [
+      "M04",
+      "C02",
+      "C04",
+      "C05",
+      "H01",
+      "H03"
+    ],
+    "failed_top_paper": []
+  },
+  "per_item": [
+    {
+      "id": "M01",
+      "question": "How do Corbett et al. and Martinez-Costa et al. differ in their findings about ISO certification and firm performance?",
+      "expected_papers": [
+        "P1",
+        "P2"
+      ],
+      "expected_behavior": "Cites BOTH: Corbett finds significant abnormal financial improvement after first certification; Martinez-Costa finds ISO 9001/2000 firms do not noticeably outperform ISO 9000/1994 or non-certified firms despite higher TQM levels. Must not pick one side silently.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P1",
+          "chunks": 10
+        },
+        {
+          "id": "P2",
+          "chunks": 5
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Corbett et al. and Martinez-Costa et al. find different results regarding the impact of ISO certification on firm performance.\n\nCorbett et al. (Mar\u00eda J. Montes-Sancho, Charles Corbett, David A. Kirsch) found that \"firm s experience significantly better relative performance, after deciding to seek their first ISO 9000 certification, than control firm s with similar assets and perf ormance prior to that decision\". They suggest that the preparations for the first ISO 9000 certification also contributed to superior performance.\n\nOn the other hand, Martinez-Costa et al. (Casades\u00fas M., I. Casades\u00fas, J.M. G\u00f3mez, A. S\u00e1nchez-Fern\u00e1ndez) found no link between ISO 9000 and organizational performance among Australian and Dutch firms respectively. They do find that higher reported business perform ance is positively associated with a broader set of motivations for seeking ISO 9000 certification.\n\nThe key difference in their findings lies in the results they report: Corbett et al. found positive effects on firm performance, while Martinez-Costa et al. did not find any link between ISO 9000 and organizational performance among Australian and Dutch firms respectively.\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.7,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 45.4
+    },
+    {
+      "id": "M02",
+      "question": "How do Franke and Kaul's findings differ from Levitt and List's reanalysis of the Hawthorne experiments?",
+      "expected_papers": [
+        "P3",
+        "P4"
+      ],
+      "expected_behavior": "Cites BOTH and must not claim they analysed the same experiment: P3 is the first relay assembly test room, P4 reanalyses the illumination experiments.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P4",
+          "chunks": 4
+        },
+        {
+          "id": "P3",
+          "chunks": 1
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Franke and Kaul's findings differ from Levitt and List's reanalysis of the Hawthorne experiments in that they found little support for a Hawthorne effect when interpreting the data correctly, but suggested that a na\u00efve misreading might lead someone to falsely conclude that one exists. On the other hand, Levitt and List (2009) analyzed the original illumination experiments and found no evidence of a Hawthorne effect.\n\nNBER Working Paper No. 15016\nWas there Really a Hawthorne Effect at the Hawthorne Plant? An Analysis of the Original Illumination Experiments\nSteven D. Levitt\nJohn A. List\n\nThis research paper by Steven D. Levitt and John A. List reanalyzes the original illumination experiments from the Hawthorne studies, which were conducted in the 1920s and 1930s at the Western Electric Company's Hawthorne Works factory in Chicago. The authors found no evidence of a Hawthorne effect, despite earlier claims that there was one.\n\nThe Hawthorne Experiments: First Statistical Interpretation\nFranke and Kaul (1978) were among the first to statistically analyze the data from these experiments. They concluded that while there might have been some initial effects due to social interaction, they found little evidence of a lasting Hawthorne effect when interpreting the data correctly.\n\nHowever, Franke and Kaul suggested that a na\u00efve misreading of the data might lead someone to falsely conclude that a Hawthorne effect was present. This is because the Hawthorne researchers themselves were aware of this possibility and adjusted their methodology accordingly. They did not want to draw attention to any potential Hawthorne effects, so they changed their experimental design in response.\n\nIn contrast, Levitt and List (2009) reanalyzed the original illumination experiments from the Hawthorne studies. They found no evidence of a Hawthorne effect when controlling for factors such as time-invariant individual characteristics and time-varying environmental conditions.\n\nThe authors argue that the lack of a Hawthorne effect in their analysis is due to the fact that they controlled for these confounding variables, whereas earlier analyses did not. This suggests that the Hawthorne effect, if it existed at all, was relatively small and short-lived.\n\nIn conclusion, while Franke and Kaul found little evidence of a lasting Hawthorne effect when interpreting the data correctly, Levitt and List (2009) found no evidence of any Hawthorne effect in their reanalysis of the original illumination experiments. This suggests that if there was an effect at all, it was relatively small and\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": false,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 5,
+      "seconds": 125.3
+    },
+    {
+      "id": "M03",
+      "question": "How do Neely and Brax et al. explain why servitization does not always improve firm performance?",
+      "expected_papers": [
+        "P5",
+        "P6"
+      ],
+      "expected_behavior": "Cites BOTH: Neely reports lower aggregate profit margins and higher bankruptcy risk moderated by firm size; Brax explains it via configuration/servitization level and organizational transformation.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.6,
+      "coverage": 0.5,
+      "papers_retrieved": [
+        {
+          "id": "P5",
+          "chunks": 3
+        },
+        {
+          "id": "P8",
+          "chunks": 2
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Neely and his co-authors Benedettini and Swink (2015) explain why servitization does not always improve firm performance by identifying several paradoxes that arise from the relationship between servitization and firm performance. These paradoxes are a result of multiple configurations being accounted for, rather than just service types and profitability.\n\nAccording to their analysis, these paradoxes can be attributed to financial and organizational risks associated with servitization. They argue that while some firms may benefit from servitization by increasing their profitability, others might face financial and organizational challenges that negatively impact their performance. These challenges include political and strategic costs, which are not easily quantifiable but have a significant impact on the firm's ability to serve its customers effectively.\n\nNeely et al. (2015) propose a risk-based explanation for why servitized firms may fail. They argue that the failure of servitized firms can be attributed to various financial and organizational risks associated with the transition from manufacturing to service provision. These risks include bankruptcy, cash flow problems, and difficulties in managing human resources.\n\nIn conclusion, Neely et al.'s (2015) explanation for why servitization does not always improve firm performance is based on the idea that there are multiple configurations of servitization and firm performance, with some firms facing financial and organizational risks that negatively impact their performance.\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.7,
+      "passed": false,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 15,
+      "seconds": 106.2
+    },
+    {
+      "id": "M04",
+      "question": "How do Flynn et al. and Zhao et al. differ in their explanation of the relationship between supply chain integration and performance?",
+      "expected_papers": [
+        "P7",
+        "P8"
+      ],
+      "expected_behavior": "Cites BOTH: Flynn finds SCI positively related to operational/business performance with internal integration central; Zhao finds an inverted-U where too much SCI can hurt financial performance.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P7",
+          "chunks": 11
+        },
+        {
+          "id": "P8",
+          "chunks": 4
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [
+        {
+          "name": "Supply Chain Integration",
+          "documents": [
+            "Flynn_2010_Supply_Chain_Integration_3075d76a",
+            "Zhao_2015_Supply_Chain_Integration_60c1df1f"
+          ]
+        },
+        {
+          "name": "Internal Integration",
+          "documents": [
+            "Zhao_2015_Supply_Chain_Integration_60c1df1f",
+            "Flynn_2010_Supply_Chain_Integration_3075d76a"
+          ]
+        },
+        {
+          "name": "Customer Integration",
+          "documents": [
+            "Zhao_2015_Supply_Chain_Integration_60c1df1f",
+            "Flynn_2010_Supply_Chain_Integration_3075d76a"
+          ]
+        },
+        {
+          "name": "Supplier Integration",
+          "documents": [
+            "Zhao_2015_Supply_Chain_Integration_60c1df1f",
+            "Flynn_2010_Supply_Chain_Integration_3075d76a"
+          ]
+        }
+      ],
+      "answer": "Flynn et al. and Zhao et al. differ in their approach to understanding the relationship between supply chain integration (SCI) and performance. \n\nFlynn et al. propose a contingency and configuration approach, suggesting both methods should be applied within a single study to examine SCI's relationship with different dimensions of performance (Journal of Operations Management 28 (2010) 58\u201371). They argue for taking into account individual dimensions of SCI as well as patterns of SCI.\n\nOn the other hand, Zhao et al. investigate how supplier integration, internal integration and customer integration contribute to or impede firms' financial performance, while considering the complementary roles of top management support in this process (Supply Chain Management 10 (5), 379\u2013393). They also suggest taking a contingency and configuration approach but within a single study.\n\nZhao et al. further point out that future research should consider both manufacturer's perspective and supply chain perspective to gain more insights into the constructs and relationships among them. Additionally, they recommend using multiple respondents from each participating firm to enhance the reliability of empirical findings (Industrial Marketing Management 45 (2015) 162\u2013172).\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.78,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 44.5
+    },
+    {
+      "id": "C01",
+      "question": "Compare the conclusions of Corbett et al. and Martinez-Costa et al. regarding ISO certification and performance.",
+      "expected_papers": [
+        "P1",
+        "P2"
+      ],
+      "expected_behavior": "Must NOT state the two papers agree.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P2",
+          "chunks": 9
+        },
+        {
+          "id": "P1",
+          "chunks": 6
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Corbett et al.'s conclusions regarding ISO certification and performance can be summarized as:\n- There is a positive link between abnormal performance and ISO 9000 certification, suggesting that the prescriptions contained in the standard lead to superior performance.\n- However, they do not draw a direct comparison between ISO 9000/1994 certified companies and ISO 9001/2000 certified companies regarding noticeable differences in performance.\n\nMartinez-Costa et al.'s conclusions are as follows:\n- Companies certified by both the 1994 and 2000 versions of the standard showed barely noticeable differences in the performance dimensions.\n- ISO 9001/2000 certified companies had slightly better scores on unit product costs, design quality, and customer satisfaction, but these differences were not significant.\n- They conclude that ISO 9001/2000 certified companies do not perform noticeably better than ISO 9000/1994 or non-certified companies. However, they find that ISO 9001/2000 certified companies apply Total Quality Management (TQM) at a higher level compared to ISO 9000/1994 certified companies.\n- Martinez-Costa et al. also state that whether the higher level of TQM manifests in better performance is less clear.\n\nIn summary, both studies find a positive link between ISO certification and performance, but they do not reach the same conclusion regarding the noticeable differences in performance between ISO 9000/1994 certified companies and ISO 9001/2000 certified companies. However, Martinez-Costa et al. conclude that ISO 9001/2000 certified companies apply TQM at a higher level than ISO 9000/1994 certified companies, but whether this leads to better performance is unclear.\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 50.9
+    },
+    {
+      "id": "C02",
+      "question": "Compare the explanations offered by Franke and Kaul versus Levitt and List for changes in productivity at Hawthorne.",
+      "expected_papers": [
+        "P3",
+        "P4"
+      ],
+      "expected_behavior": "Must distinguish relay assembly experiment from illumination experiments.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P3",
+          "chunks": 8
+        },
+        {
+          "id": "P4",
+          "chunks": 7
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [
+        {
+          "name": "Hawthorne Effect",
+          "documents": [
+            "Levitt_2009_Hawthorne_Effect_e7543894",
+            "Franke_1978_Hawthorne_Effect_6486c95e"
+          ]
+        }
+      ],
+      "answer": "Franke and Inkeles compare the explanations offered by Franke et al. for changes in productivity at Hawthorne with those of Levitt and List.\n\nFranke and Inkeles (authors of the study) argue that the observed productivity gains were not due to lighting conditions but rather due to the attention and experimentation from researchers. They suggest that the \"Hawthorne effect\" is a misnomer, as it implies that changes in productivity are solely due to lighting conditions.\n\nLevitt and List (possibly referring to other authors or interpretations) argue for the existence of a Hawthorne effect, suggesting that changes in productivity are due to experimental lighting conditions. Franke and Inkeles challenge this interpretation by arguing that the observed productivity gains were not due to lighting but rather due to the attention from researchers.\n\nIn contrast, Franke et al.'s explanation focuses on the role of experimentation and attention from researchers as the primary drivers of changes in productivity at Hawthorne. They argue that the \"Hawthorne effect\" is a misnomer, as it implies that changes in productivity are solely due to lighting conditions.\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.8,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 46.7
+    },
+    {
+      "id": "C03",
+      "question": "Compare Neely's empirical findings with Brax et al.'s configurational explanation of the servitization paradox.",
+      "expected_papers": [
+        "P5",
+        "P6"
+      ],
+      "expected_behavior": "Distinguishes empirical financial-risk evidence from a configurational explanation.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P5",
+          "chunks": 14
+        },
+        {
+          "id": "P6",
+          "chunks": 1
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Neely's empirical findings and Brax et al.'s configurational explanation of the servitization paradox demonstrate a mutually reinforcing relationship. Neely's study validates and elaborates pre-existing theoretical understanding about the dynamics of the two \"servitization paradoxes\" (as mentioned in Brax, 2005; Gebauer et al., 2005). Brax et al.'s configurational approach shows that the relationship between servitization and firm performance cannot be explained by means of service types and profitability alone.\n\nNeely's empirical findings show mixed results reflecting a \"paradoxical relationship\" between servitization and performance due to different definitions of servitization and performance. However, Brax et al.'s configurational theory proposes three major constellations of servitization and firm performance that fit an S-shaped curve, providing a consistent theoretical explanation.\n\nIn summary, while Neely's findings reflect the mixed results observed in the literature, Brax et al.'s configurational approach provides a coherent explanation for these mixed results. The configurational analysis connects theory and mixed results in a mutually reinforcing relationship, like different slopes fitting into an S-shaped curve.\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.81,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 100.5
+    },
+    {
+      "id": "C04",
+      "question": "Compare Flynn et al.'s and Zhao et al.'s conclusions about whether more supply chain integration is beneficial.",
+      "expected_papers": [
+        "P7",
+        "P8"
+      ],
+      "expected_behavior": "Contrasts positive association with the inverted-U nuance.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P7",
+          "chunks": 8
+        },
+        {
+          "id": "P8",
+          "chunks": 7
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [
+        {
+          "name": "Supply Chain Integration",
+          "documents": [
+            "Flynn_2010_Supply_Chain_Integration_3075d76a",
+            "Zhao_2015_Supply_Chain_Integration_60c1df1f"
+          ]
+        }
+      ],
+      "answer": "Flyn et al.'s (2006a) study compared supplier and customer integration's impact on performance among US and East Asian companies. They found that both types of supply chain integration have a positive relationship with firm performance. However, they also suggested that a contingency and configuration approach is needed to fully understand the relationship between supply chain integration (SCI) and performance.\n\nZhao et al.'s (2015) study examined the relationship between supply chain integration (SCI) and firm performance specifically in China. They found that SCI has a positive impact on firm performance, but they also emphasized the need for future research to take both a contingency and configuration approach to studying SCI. This is because examining individual dimensions of SCI and their relationships with different dimensions of performance as well as patterns of SCI and their relationship with different dimensions of performance can provide more insights.\n\nIn summary, while both studies found that supply chain integration has positive effects on firm performance, they also highlighted the importance of taking a contingency and configuration approach to fully understand these relationships.\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 58.4
+    },
+    {
+      "id": "C05",
+      "question": "Which papers in this knowledge graph provide evidence that a management practice may have nonlinear or context-dependent effects on performance?",
+      "expected_papers": [
+        "P1",
+        "P2",
+        "P5",
+        "P6",
+        "P7",
+        "P8"
+      ],
+      "expected_behavior": "Cross-topic conceptual retrieval: must span several papers rather than keyword-match one. Coverage is the metric here, not precision.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.933,
+      "coverage": 0.833,
+      "papers_retrieved": [
+        {
+          "id": "P7",
+          "chunks": 5
+        },
+        {
+          "id": "P8",
+          "chunks": 4
+        },
+        {
+          "id": "P5",
+          "chunks": 2
+        },
+        {
+          "id": "P2",
+          "chunks": 2
+        },
+        {
+          "id": "P3",
+          "chunks": 1
+        },
+        {
+          "id": "P1",
+          "chunks": 1
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [
+        {
+          "name": "Supply Chain Integration",
+          "documents": [
+            "Flynn_2010_Supply_Chain_Integration_3075d76a",
+            "Zhao_2015_Supply_Chain_Integration_60c1df1f"
+          ]
+        }
+      ],
+      "answer": "The paper which provides evidence that a management practice may have nonlinear or context-dependent effects on performance is:\n\nSj\u00f6din, D., Parida, V., & Kohtamaki, M. (2019). Relational governance strategies for advanced service provision: multiple paths to superior financial performance in servitization. Journal of Business Research, 101, 906-915.\n\nThis paper discusses \"Relational Governance Strategies for Advanced Service Provision: Multiple Paths to Superior Financial Performance in Servitization\" and examines the impact of relational governance on financial performance in the context of service provision. It suggests that different strategies can lead to superior financial outcomes depending on the specific context.\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 123.8
+    },
+    {
+      "id": "H01",
+      "question": "Which supply chain integration dimension did Flynn et al. identify as a foundation for customer and supplier integration, and what performance outcomes was it associated with?",
+      "expected_papers": [
+        "P7"
+      ],
+      "expected_behavior": "Internal integration is the foundation; associated with operational and business performance.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.933,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P7",
+          "chunks": 14
+        },
+        {
+          "id": "P8",
+          "chunks": 1
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [
+        {
+          "name": "Customer Integration",
+          "documents": [
+            "Flynn_2010_Supply_Chain_Integration_3075d76a",
+            "Zhao_2015_Supply_Chain_Integration_60c1df1f"
+          ]
+        },
+        {
+          "name": "Supplier Integration",
+          "documents": [
+            "Flynn_2010_Supply_Chain_Integration_3075d76a",
+            "Zhao_2015_Supply_Chain_Integration_60c1df1f"
+          ]
+        }
+      ],
+      "answer": "Flyn et al. identified internal integration as the supply chain integration dimension that serves as the foundation for customer and supplier integration. This suggests that companies should begin supply chain integration (SCI) with internal integration, laying the foundation for customer and supplier integration (Flyn et al., 2010, p. 60).\n\nInternal integration was found to be directly related to business performance, while supplier and customer integration were not directly related to business performance through this dimension (Flyn et al., 2010). However, they are related to business performance through operational performance.\n\nAdding internal integration to the dimensions used by Frohlich and Westbrook (2001) is expected to yield similar results in terms of their relationship with performance. Therefore, manufacturers with the strongest overall SCI are expected to have the best business performance (Flyn et al., 2010).\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.85,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 56.9
+    },
+    {
+      "id": "H02",
+      "question": "In Franke and Kaul's analysis, which factors were associated with quantity of output, and which factor was particularly important for quality of output?",
+      "expected_papers": [
+        "P3"
+      ],
+      "expected_behavior": "Quantity: managerial discipline / depression / scheduled rest. Quality: raw material quality. Must keep the two outcomes separate.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.8,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P3",
+          "chunks": 4
+        },
+        {
+          "id": "P4",
+          "chunks": 1
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "In Franke and Kaul's analysis, factors associated with the quantity of output were:\n1. Managerial discipline\n2. The economic adversity of the depression\n3. Time set aside for rest\n\nThe factor particularly important for quality of output was 'quality of raw materials'.\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": false,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 15,
+      "seconds": 69.9
+    },
+    {
+      "id": "H03",
+      "question": "According to Brax et al., what organizational condition becomes important when servitization reaches a higher level, and what happens if it is not achieved?",
+      "expected_papers": [
+        "P5"
+      ],
+      "expected_behavior": "Organizational transformation is required; failing it produces the paradox / poorer performance.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.933,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P5",
+          "chunks": 14
+        },
+        {
+          "id": "P6",
+          "chunks": 1
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [
+        {
+          "name": "Servitization",
+          "documents": [
+            "Neely_2008_Servitization_b5e36f47",
+            "Kohtamaki_2021_Servitization_25216012"
+          ]
+        }
+      ],
+      "answer": "According to Brax et al., when a higher level of servitization is reached, an important organizational condition becomes important. This alignment between the firm's organizational capabilities and structure and the service portfolio they intend to pursue is crucial.\n\nIf this alignment is not achieved, it leads to financial and organizational paradoxes such as the Service Financial and Organizational Paradoxes (Brax, 2005; Gebauer et al., 2005). These paradoxes can make it more challenging when servitization reaches a higher level.\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.78,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 299.6
+    }
+  ]
+}

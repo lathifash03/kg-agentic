@@ -1,0 +1,51 @@
+{
+  "_comment": "P-id -> Document.filename in the 8-paper KG. Identify papers by TITLE, not filename: P5's file is named 'Kohtamaki_2021_Servitization' but the paper it contains is Brax et al. (2021).",
+  "P1": {
+    "filename": "Corbett_2005_ISO_9001_Performance_fc751696",
+    "cite": "Corbett, Montes-Sancho & Kirsch (2005)",
+    "title": "The Financial Impact of ISO 9000 Certification in the US",
+    "chunks": 86
+  },
+  "P2": {
+    "filename": "Martinez_2009_ISO_9001_Performance_28f1501d",
+    "cite": "Martinez-Costa et al. (2009)",
+    "title": "ISO 9000/1994, ISO 9001/2000 and TQM: The performance debate revisited",
+    "chunks": 120
+  },
+  "P3": {
+    "filename": "Franke_1978_Hawthorne_Effect_6486c95e",
+    "cite": "Franke & Kaul (1978)",
+    "title": "The Hawthorne Experiments: First Statistical Interpretation",
+    "chunks": 71
+  },
+  "P4": {
+    "filename": "Levitt_2009_Hawthorne_Effect_e7543894",
+    "cite": "Levitt & List (2009)",
+    "title": "Was there Really a Hawthorne Effect at the Hawthorne Plant?",
+    "chunks": 42
+  },
+  "P5": {
+    "filename": "Kohtamaki_2021_Servitization_25216012",
+    "cite": "Brax et al. (2021)",
+    "title": "Explaining the servitization paradox",
+    "chunks": 129
+  },
+  "P6": {
+    "filename": "Neely_2008_Servitization_b5e36f47",
+    "cite": "Neely (2008)",
+    "title": "Exploring the Financial Consequences of the Servitization of Manufacturing",
+    "chunks": 93
+  },
+  "P7": {
+    "filename": "Flynn_2010_Supply_Chain_Integration_3075d76a",
+    "cite": "Flynn, Huo & Zhao (2010)",
+    "title": "The impact of supply chain integration on performance",
+    "chunks": 137
+  },
+  "P8": {
+    "filename": "Zhao_2015_Supply_Chain_Integration_60c1df1f",
+    "cite": "Zhao, Feng & Wang (2015)",
+    "title": "Is more supply chain integration always beneficial to financial performance?",
+    "chunks": 138
+  }
+}

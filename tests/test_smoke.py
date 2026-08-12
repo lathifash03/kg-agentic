@@ -35,6 +35,91 @@ def test_tool_registry():
         assert spec["parameters"]["type"] == "object"
 
 
+def test_every_tool_declares_whether_it_writes():
+    """A tool added without a `writes` flag must not silently pass as safe."""
+    from kg_agent.tools import TOOLS, tool_writes
+
+    for name in TOOLS:
+        assert "writes" in TOOLS[name], f"{name} tidak menyatakan flag 'writes'"
+        assert isinstance(tool_writes(name), bool)
+    assert tool_writes("ingest_meeting") is True
+    assert tool_writes("answer_question") is False
+
+
+def test_tool_specs_exclude_the_writes_flag():
+    """tool_specs() feeds Ollama's function schema - no extra keys may leak."""
+    from kg_agent.tools import tool_specs
+
+    for spec in tool_specs():
+        assert set(spec) == {"name", "description", "parameters"}
+
+
+def test_writes_are_blocked_by_default():
+    """Default posture is read-only: the API has no auth and is often pointed
+    at somebody else's graph.
+    """
+    from kg_agent.config import SafetyConfig
+
+    assert SafetyConfig().read_only is True
+
+
+def test_call_tool_refuses_write_tool_when_read_only():
+    """The guard lives at the dispatcher, so it holds for the API and for the
+    orchestrator reached from either the API or the CLI.
+    """
+    import pytest
+
+    from kg_agent.config import get_config
+    from kg_agent.tools import call_tool
+
+    cfg = get_config()
+    cfg.safety.read_only = True
+
+    with pytest.raises(PermissionError, match="KG_READ_ONLY"):
+        call_tool("ingest_meeting", None, cfg, {"title": "standup"})
+
+
+def test_call_tool_allows_read_tool_when_read_only():
+    """Read-only must not break the path Rio actually uses."""
+    from kg_agent.config import get_config
+    from kg_agent.tools import TOOLS, call_tool
+
+    cfg = get_config()
+    cfg.safety.read_only = True
+    seen = {}
+
+    def fake_stats(client, config):
+        seen["called"] = True
+        return {"entities": 1}
+
+    original = TOOLS["kg_stats"]["fn"]
+    TOOLS["kg_stats"]["fn"] = fake_stats
+    try:
+        assert call_tool("kg_stats", None, cfg) == {"entities": 1}
+    finally:
+        TOOLS["kg_stats"]["fn"] = original
+    assert seen["called"]
+
+
+def test_call_tool_allows_write_tool_when_writes_enabled():
+    """Turning the guard off restores the original behaviour exactly."""
+    from kg_agent.config import get_config
+    from kg_agent.tools import TOOLS, call_tool
+
+    cfg = get_config()
+    cfg.safety.read_only = False
+
+    original = TOOLS["ingest_meeting"]["fn"]
+    TOOLS["ingest_meeting"]["fn"] = lambda client, config, **kw: {"ok": True, **kw}
+    try:
+        assert call_tool("ingest_meeting", None, cfg, {"title": "standup"}) == {
+            "ok": True,
+            "title": "standup",
+        }
+    finally:
+        TOOLS["ingest_meeting"]["fn"] = original
+
+
 def test_config_defaults():
     from kg_agent.config import get_config
 
@@ -838,6 +923,166 @@ def test_check_faithfulness_still_calls_judge_for_real_answers():
 
     assert result["faithfulness"] == 0.9
     assert len(judge.calls) == 1
+
+
+def _chunk_source_config(source_prop=""):
+    """Config for a Chunk/MENTIONS corpus, optionally reporting document origin."""
+    from kg_agent.config import RetrievalConfig, get_config
+
+    cfg = get_config()
+    cfg.retrieval = RetrievalConfig(
+        chunk_label="Chunk",
+        chunk_text_property="text",
+        chunk_to_entity_pattern="(c:{chunk_label})-[:MENTIONS]->(e:{entity_label})",
+        chunk_source_property=source_prop,
+    )
+    return cfg
+
+
+def test_retrieval_omits_document_fields_when_source_prop_unset():
+    """Default config is unchanged: no source property, no document reporting,
+    and the Cypher must not reference a source column at all.
+    """
+    from kg_agent.agentic_verifier import retrieve_keyword
+
+    canned = [{"text": "SCI improves performance.", "entity_names": ["Sci"]}]
+    client = _StubNabhylaClient(canned)
+
+    ctx = retrieve_keyword(client, _chunk_source_config(), "supply chain integration", k=5)
+
+    assert ctx.documents == []
+    assert ctx.entity_documents == {}
+    assert "null AS source_doc" in client.queries[0][0]
+
+
+def test_retrieval_reports_document_origin_when_source_prop_set():
+    """With a source property configured, retrieval ranks the documents the
+    chunks came from (most-cited first) and records which documents mention
+    each entity.
+    """
+    from kg_agent.agentic_verifier import retrieve_keyword
+
+    canned = [
+        {"text": "Neely: 12 approaches.", "entity_names": ["Servitization"], "source_doc": "Neely_2008"},
+        {"text": "Brax: configuration.", "entity_names": ["Servitization"], "source_doc": "Brax_2021"},
+        {"text": "Brax: paradox.", "entity_names": ["Paradox"], "source_doc": "Brax_2021"},
+    ]
+    client = _StubNabhylaClient(canned)
+
+    ctx = retrieve_keyword(client, _chunk_source_config("filename"), "servitization", k=5)
+
+    assert "c.`filename` AS source_doc" in client.queries[0][0]
+    # Brax contributed two chunks, Neely one -> Brax ranks first.
+    assert ctx.documents == [
+        {"name": "Brax_2021", "chunks": 2},
+        {"name": "Neely_2008", "chunks": 1},
+    ]
+    # "Servitization" is mentioned by both papers - the collision is visible.
+    assert ctx.entity_documents["Servitization"] == ["Neely_2008", "Brax_2021"]
+    assert ctx.entity_documents["Paradox"] == ["Brax_2021"]
+
+
+def test_build_sources_attaches_documents_per_entity():
+    """Per-entity document provenance reaches sources_used, so an answer that
+    silently mixed two papers can be detected from the output alone.
+    """
+    from kg_agent.temporal_validity import NodeValidity, ValidityStatus
+
+    verifier = _bare_verifier(llm=None, judge=None)
+    report = [
+        NodeValidity(
+            element_id="1", entity_id="t3", name="Table 3",
+            status=ValidityStatus.VALID, age_days=None, reasons=[],
+        )
+    ]
+
+    sources = verifier._build_sources(
+        report, scores=[], names=["Table 3"],
+        entity_documents={"Table 3": ["Neely_2008", "Franke_1978"]},
+    )
+
+    assert sources[0]["documents"] == ["Neely_2008", "Franke_1978"]
+
+
+def test_build_sources_omits_documents_when_absent():
+    """Without provenance the key is left out entirely rather than set empty."""
+    from kg_agent.temporal_validity import NodeValidity, ValidityStatus
+
+    verifier = _bare_verifier(llm=None, judge=None)
+    report = [
+        NodeValidity(
+            element_id="1", entity_id="sci", name="Sci",
+            status=ValidityStatus.VALID, age_days=None, reasons=[],
+        )
+    ]
+
+    sources = verifier._build_sources(report, scores=[], names=["Sci"])
+
+    assert "documents" not in sources[0]
+
+
+def _loop_verifier(monkeypatch, faithfulness, retrieved):
+    """A verifier whose retrieval, validity and trust steps are stubbed out, so
+    ``verify()`` can be driven end to end without a database or an LLM.
+
+    ``retrieved`` collects the strategy of every retrieval actually performed,
+    which is the ground truth the ``retries`` field is checked against.
+    """
+    import kg_agent.agentic_verifier as av
+
+    def fake_retrieve(client, config, query, strategy, k):
+        retrieved.append(strategy)
+        return av.RetrievedContext(node_names=["Servitization"], chunks=["ctx"], strategy=strategy)
+
+    monkeypatch.setattr(av, "retrieve", fake_retrieve)
+    monkeypatch.setattr(av, "generate_validity_report", lambda *a, **k: [])
+    monkeypatch.setattr(av, "score_entities", lambda *a, **k: [])
+
+    verifier = _bare_verifier(llm=_FakeCompletionLLM("Some answer."))
+    verifier.judge = _FakeCompletionLLM('{"faithfulness": %s, "verdict": "x"}' % faithfulness)
+    verifier.client = None
+    # Pin the loop's policy so the test does not depend on the ambient .env.
+    verifier.config.verifier.max_retries = 1
+    verifier.config.verifier.min_faithfulness = 0.7
+    verifier.config.verifier.min_trust_score = 0.4
+    return verifier
+
+
+def test_retries_counts_attempts_run_not_the_winning_attempt(monkeypatch):
+    """A confidence tie keeps attempt 0 as the answer, but the retry that
+    really happened must still be reported.
+
+    Reproduces the live "How many servitization strategies did Neely identify?"
+    case: both attempts scored faithfulness 0.0, so the argmax (a strict ``>``)
+    kept the first, and its attempt index hid the second retrieval.
+    """
+    retrieved = []
+    verifier = _loop_verifier(monkeypatch, faithfulness=0.0, retrieved=retrieved)
+
+    result = verifier.verify("how many servitization strategies did Neely identify?")
+
+    assert len(retrieved) == 2, "a retry really happened"
+    assert result.passed is False
+    # Attempt 0 still wins the tie and supplies the answer...
+    assert result.strategy == retrieved[0]
+    # ...but the retry is no longer hidden.
+    assert result.retries == 1
+
+
+def test_retries_is_zero_when_the_first_attempt_passes(monkeypatch):
+    """The passing path returns on attempt 0 with no retry and no disclaimer -
+    the counter must not drift now that it is tracked separately.
+    """
+    retrieved = []
+    verifier = _loop_verifier(monkeypatch, faithfulness=0.95, retrieved=retrieved)
+    verifier.config.verifier.min_trust_score = 0.0  # let the trust gate pass
+
+    result = verifier.verify("what are the dimensions of supply chain integration?")
+
+    assert len(retrieved) == 1
+    assert result.passed is True
+    assert result.retries == 0
+    assert result.disclaimer == ""
 
 
 if __name__ == "__main__":

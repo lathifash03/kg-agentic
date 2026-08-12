@@ -18,7 +18,18 @@ Docker — supaya sederhana dan menghindari bug seccomp Docker lama. Ollama diak
 2. **ACL tailnet mengizinkan port 8003** dari mesin Rio → server. (ACL yang sama
    yang memblok SSH bisa juga membatasi port; pastikan `:8003` dibuka.)
 3. **Ollama server** punya model: `hermes3:3b` (answer-gen + juri) dan
-   `mxbai-embed-large` (embedding retrieval). Kalau belum → `ollama pull` (langkah 4).
+   `qwen3-embedding:0.6b` (embedding retrieval).
+   - `qwen3-embedding:0.6b` **sudah ada** di citi-cygnus — server itu memang
+     menyimpan keluarga qwen3. Kebetulan menguntungkan: itu juga model yang
+     dipakai meng-embed chunk di KG, jadi tidak perlu pull apa-apa untuk embedding.
+   - `hermes3:3b` **belum ada** dan harus di-pull (langkah 4). Jangan diganti
+     `qwen3:4b`/`qwen3:8b`/`qwen3-vl:4b` — keluarga "thinking" itu menghabiskan
+     token budget untuk bernalar dan mengembalikan jawaban kosong pada konteks
+     panjang; sudah diuji dan ditinggalkan (lihat commit `350d858`).
+   - **JANGAN** pull `mxbai-embed-large` di sini. Runbook versi sebelumnya
+     menyuruh begitu dan itu keliru: chunk di KG di-embed dengan qwen3, jadi
+     memakai mxbai membuat retrieval balik kosong **tanpa error apa pun**
+     (dua-duanya 1024 dim, index tidak pernah protes).
 4. **Neo4j `100.110.179.78:7687` reachable DARI server** (bukan cuma dari laptop).
    Uji dengan `nc -z 100.110.179.78 7687` di server (langkah 5).
 5. **Repo bisa di-clone di server.** `github.com/lathifash03/kg-agentic` — kalau
@@ -44,11 +55,23 @@ cp .env.server.example .env
 #    (tinjau isinya; NEO4J_URI harus bolt://100.110.179.78:7687)
 
 # 4. Pastikan model ada di Ollama server
-ollama pull hermes3:3b
-ollama pull mxbai-embed-large
+ollama pull hermes3:3b          # answer-gen + juri; belum ada di server ini
+ollama list | grep qwen3-embedding   # embedding: harus SUDAH ada, jangan pull mxbai
 
 # 5. Sanity: server bisa lihat Neo4j?
 nc -z 100.110.179.78 7687 && echo "neo4j OK"
+
+# 5b. Sanity embedding — ini yang kemarin gagal senyap. Model di .env HARUS
+#     sama dengan yang tersimpan di chunk. Query berikut harus mengembalikan
+#     tepat satu baris, berisi qwen3-embedding:0.6b.
+./.venv/bin/python -c "
+from kg_agent.config import get_config
+from kg_agent.neo4j_client import Neo4jClient
+cfg = get_config()
+with Neo4jClient.from_config(cfg) as c:
+    print('graph :', c.run_read('MATCH (c:Chunk) RETURN DISTINCT c.embeddings_model AS m, count(*) AS n'))
+    print('.env  :', cfg.retrieval.embed_model)
+"
 
 # 6. Jalankan API di port 8003, tetap hidup (tmux — cara cepat)
 tmux new -s kgagent -d './.venv/bin/uvicorn kg_agent.api:app --host 0.0.0.0 --port 8003'
@@ -104,16 +127,68 @@ curl -s http://localhost:8003/health
 
 | Endpoint | Method | Body | Hasil |
 |---|---|---|---|
-| `/health` | GET | — | `{status, neo4j_connected}` |
-| `/query` | POST | `{"query": "..."}` | `{answer, passed, trust_score, faithfulness, sources_used[], temporal_status}` |
-| `/tools` | GET | — | daftar tool |
-| `/tools/{name}` | POST | args tool | hasil tool spesifik |
+| `/health` | GET | — | `{status, neo4j_connected, read_only}` |
+| `/query` | POST | `{"query": "..."}` | `{answer, passed, trust_score, faithfulness, overall_confidence, sources_used[], documents_used[], temporal_validity_status, explanation, disclaimer, retries, strategy}` |
+| `/tools` | GET | — | `{tools[], read_only}`; tiap tool punya flag `writes` |
+| `/tools/{name}` | POST | `{"arguments": {...}}` | hasil tool; **403** kalau tool-nya menulis dan read-only aktif |
+| `/setup` | POST | — | **403** saat read-only (memang begitu maunya) |
 
-## Catatan penting yang masih terbuka
+Yang perlu Rio tahu tentang bentuk jawabannya:
 
-- **Disclaimer "low trust":** graph `100.110.179.78` belum dijalankan Phase 1, jadi
-  node tak punya `source_type`/`confidence` → trust ~0.2 → tiap jawaban `passed=false`
-  dengan disclaimer. Untuk menghilangkan → jalankan Phase 1 (MENULIS ke graph) —
-  butuh keputusan izin tulis dulu.
-- **Menulis ke KG (`ingest_meeting`, `--setup`):** orchestrator `off` secara default,
-  jadi API hanya membaca. Aktifkan hanya setelah izin tulis jelas.
+- **`passed` akan `false` untuk semua pertanyaan, dan itu bukan bug integrasi.**
+  Node di graph tidak punya `source_type`/`confidence_score`, sehingga trust
+  konstan 0.2 di bawah ambang 0.4. Field `answer` tetap terisi penuh dan
+  `faithfulness` tetap bermakna — jangan perlakukan `passed=false` sebagai
+  kegagalan panggilan.
+- **`answer` sudah memuat disclaimer** di ujungnya (`\n\n[!] Unverified: ...`)
+  saat gate tidak lolos. Kalau Rio mau merender disclaimer terpisah, pakai field
+  `disclaimer` dan potong bagian itu dari `answer`.
+- **Korpus baru 4 dari 8 paper** (Hawthorne + servitization ada; ISO dan supply
+  chain integration hilang). Pertanyaan di luar dua topik itu akan balik tanpa
+  sumber. Sedang diperbaiki Nabhyla/Wildan.
+- Satu request memakan **40–180 detik** (inferensi CPU + kemungkinan satu retry).
+  Set timeout klien minimal 300 detik.
+
+## Mode read-only — jangan dimatikan tanpa izin tulis
+
+`KG_READ_ONLY=true` (default) menolak setiap tool yang menulis dengan 403,
+ditegakkan di `call_tool` — satu titik sempit yang dilewati API maupun
+orchestrator. Verifikasi setelah deploy:
+
+```bash
+curl -s http://100.118.203.111:8003/health          # "read_only": true
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  http://100.118.203.111:8003/tools/ingest_meeting \
+  -H 'Content-Type: application/json' -d '{"arguments":{"title":"tes"}}'
+# harus 403
+```
+
+`KG_ORCHESTRATOR=off` **bukan** pengaman yang setara — flag itu hanya mencegah
+LLM memilih tool. `POST /tools/ingest_meeting` langsung, dan `POST /query`
+dengan `{"agentic": true}`, dua-duanya melewatinya. `KG_READ_ONLY` yang menutup
+keduanya.
+
+## Docker atau native?
+
+Runbook di atas memakai **uvicorn native**, dan itu tetap pilihan yang
+disarankan. `docker-compose.prod.yml` tersedia dan sudah dipetakan `8003:8000`,
+tapi build image-nya **gagal di Docker lama** — diuji di Docker 20.10.2 dan
+berhenti di `pip install` dengan `RuntimeError: can't start new thread` (bug
+seccomp/`clone3`). Kalau citi-cygnus punya Docker ≥ 23, jalur Docker aman:
+
+```bash
+cp .env.docker.example .env     # tinjau: NEO4J_URI, KG_EMBED_MODEL, KG_READ_ONLY
+docker compose -f docker-compose.prod.yml up -d --build
+curl http://localhost:8003/health
+```
+
+Cek versinya dulu dengan `docker version --format '{{.Server.Version}}'`.
+
+## Menambah endpoint baru untuk Rio
+
+Tidak perlu menyentuh `api.py`. Tulis fungsi di `kg_agent/tools.py`, daftarkan
+di dict `TOOLS` dengan `description`, `parameters`, dan **`writes`** (wajib —
+`tool_writes` sengaja gagal keras kalau flag-nya lupa, supaya tool baru tidak
+diam-diam lolos sebagai read-only). Tool itu langsung muncul di `GET /tools` dan
+bisa dipanggil lewat `POST /tools/<nama>`, sekaligus otomatis tersedia untuk
+orchestrator.

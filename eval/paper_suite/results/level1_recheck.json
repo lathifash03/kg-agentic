@@ -1,0 +1,57 @@
+{
+  "summary": {
+    "n_questions": 1,
+    "retrieval_hit_rate": 1.0,
+    "top_paper_accuracy": 1.0,
+    "mean_chunk_precision": 0.8,
+    "mean_coverage": 1.0,
+    "evidence_present_rate": 1.0,
+    "items_with_forbidden_claims": [],
+    "gate_passed_rate": 0.0,
+    "mean_trust": 0.2,
+    "mean_faithfulness": 0.7,
+    "items_with_cross_paper_entities": [],
+    "failed_top_paper": []
+  },
+  "per_item": [
+    {
+      "id": "D06",
+      "question": "What did Levitt and List conclude about the commonly described Hawthorne effect?",
+      "expected_papers": [
+        "P4"
+      ],
+      "expected_behavior": "Little systematic evidence that productivity jumped whenever lighting changed. The real criterion is negative: MUST NOT claim lighting always raised productivity. Phrasing varies legitimately ('entirely fictional'), so the positive check is any-of.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.8,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P4",
+          "chunks": 12
+        },
+        {
+          "id": "P3",
+          "chunks": 3
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [
+        "fictional",
+        "less than one percent"
+      ],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Levitt and List concluded that there are hints of more subtle manifestations of a Hawthorne effect in the original data from the Hawthorne illumination experiments, but they found that existing descriptions of supposedly remarkable data patterns were entirely fictional. The directionally consistent pattern of a deviation change in artificial light increasing output by more than one percent is suggestive of a Hawthorne Effect because the increase in output in response to artificial light was greater than for natural light.\n\nHowever, it should be noted that this effect was not as strong as described in many common accounts. They found no statistically significant changes in productivity due to the change in lighting conditions. The increase in output in response to artificial light was less than one percent and did not meet statistical significance.\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.7,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 51.1
+    }
+  ]
+}

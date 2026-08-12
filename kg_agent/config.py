@@ -319,6 +319,18 @@ class RetrievalConfig:
         )
     )
 
+    # -- Document provenance -------------------------------------------------
+    # Property on the chunk node naming the document it came from (e.g.
+    # ``filename`` in a multi-paper corpus). When set, retrieval reports which
+    # documents an answer was drawn from, and which documents each entity was
+    # mentioned by - the latter exposes entities whose names collide across
+    # documents (a generic "Table 3" topic shared by four papers), which would
+    # otherwise silently mix sources. Empty (the default) disables the feature
+    # and leaves every query identical to before.
+    chunk_source_property: str = field(
+        default_factory=lambda: _env_str("KG_CHUNK_SOURCE_PROP", "")
+    )
+
 
 @dataclass
 class VerifierConfig:
@@ -372,6 +384,33 @@ class OrchestratorConfig:
 
 
 # --------------------------------------------------------------------------- #
+# Write guard
+# --------------------------------------------------------------------------- #
+@dataclass
+class SafetyConfig:
+    """Global guard on tool-driven writes to the graph.
+
+    Enforced inside :func:`kg_agent.tools.call_tool`, which is the single choke
+    point every tool-driven write passes through - the HTTP API, and the
+    orchestrator whether it was reached from the API or the CLI. Guarding there
+    rather than in the API means a new route or a new caller cannot reopen the
+    hole by forgetting to check.
+
+    Defaults to **True** because the API has no authentication and is routinely
+    pointed at a graph somebody else owns. ``KG_ORCHESTRATOR=off`` is not a
+    substitute: it only stops the LLM from *choosing* a tool, and never blocked
+    a direct ``POST /tools/ingest_meeting`` - nor ``POST /query`` with
+    ``{"agentic": true}``, which turns the orchestrator on per-request.
+
+    Not covered, deliberately: ``kg_agent.cli --setup``. That is an explicit
+    operator action on a machine the operator already controls, not a request
+    arriving over a port.
+    """
+
+    read_only: bool = field(default_factory=lambda: _env_bool("KG_READ_ONLY", True))
+
+
+# --------------------------------------------------------------------------- #
 # Root config
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -388,6 +427,7 @@ class Config:
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     verifier: VerifierConfig = field(default_factory=VerifierConfig)
     orchestrator: OrchestratorConfig = field(default_factory=OrchestratorConfig)
+    safety: SafetyConfig = field(default_factory=SafetyConfig)
 
 
 def get_config() -> Config:

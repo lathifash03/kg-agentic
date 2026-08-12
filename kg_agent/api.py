@@ -35,9 +35,27 @@ from kg_agent.config import get_config
 from kg_agent.neo4j_client import Neo4jClient
 from kg_agent.node_trust import compute_and_store, summarise_scores
 from kg_agent.orchestrator import run_orchestrated
-from kg_agent.tools import call_tool, tool_specs
+from kg_agent.tools import call_tool, tool_specs, tool_writes
 
 logger = logging.getLogger(__name__)
+
+
+def _refuse_if_read_only(what: str) -> None:
+    """Raise 403 when writes are disabled and ``what`` would write.
+
+    Only needed for write paths that do NOT go through ``call_tool`` (i.e.
+    ``/setup``); tool invocations are guarded at the dispatcher itself and
+    surface here as :class:`PermissionError`.
+    """
+    if app.state.cfg.safety.read_only:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Graph dalam mode read-only, {what} ditolak. "
+                "Set KG_READ_ONLY=false untuk mengizinkan tulis - "
+                "pastikan dulu ada izin tulis ke graph tujuan."
+            ),
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -85,12 +103,21 @@ class ToolCallRequest(BaseModel):
 @app.get("/health")
 def health() -> Dict[str, Any]:
     ok = app.state.client.verify_connectivity()
-    return {"status": "ok" if ok else "degraded", "neo4j_connected": ok}
+    return {
+        "status": "ok" if ok else "degraded",
+        "neo4j_connected": ok,
+        # Surfaced so a caller can tell a refusal-by-policy from a real failure
+        # before sending anything.
+        "read_only": app.state.cfg.safety.read_only,
+    }
 
 
 @app.get("/tools")
 def list_tools() -> Dict[str, Any]:
-    return {"tools": tool_specs()}
+    # `writes` is annotated here rather than inside tool_specs() so the schema
+    # sent to the LLM stays a clean function definition.
+    tools = [{**spec, "writes": tool_writes(spec["name"])} for spec in tool_specs()]
+    return {"tools": tools, "read_only": app.state.cfg.safety.read_only}
 
 
 @app.post("/tools/{name}")
@@ -99,6 +126,8 @@ def invoke_tool(name: str, body: ToolCallRequest) -> Dict[str, Any]:
         result = call_tool(name, app.state.client, app.state.cfg, body.arguments)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:  # write tool while KG_READ_ONLY is on
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except TypeError as exc:  # argumen tidak cocok dengan signature tool
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"tool": name, "result": result}
@@ -136,7 +165,11 @@ def query(body: QueryRequest) -> Dict[str, Any]:
 
 @app.post("/setup")
 def setup() -> Dict[str, Any]:
-    """Phase 1 (temporal metadata) + Phase 3 (trust scoring). Idempotent."""
+    """Phase 1 (temporal metadata) + Phase 3 (trust scoring). Idempotent.
+
+    Menulis ke SETIAP node entity, jadi ditolak saat API read-only.
+    """
+    _refuse_if_read_only("/setup menjalankan migrasi yang menulis ke seluruh node")
     if not app.state.client.verify_connectivity():
         raise HTTPException(status_code=503, detail="Neo4j tidak terhubung.")
     migration = app.state.client.run_phase1_migration()

@@ -1,0 +1,334 @@
+{
+  "summary": {
+    "n_questions": 8,
+    "retrieval_hit_rate": 1.0,
+    "top_paper_accuracy": 0.875,
+    "mean_chunk_precision": 0.783,
+    "mean_coverage": 1.0,
+    "evidence_present_rate": 0.75,
+    "items_with_forbidden_claims": [],
+    "gate_passed_rate": 0.0,
+    "mean_trust": 0.2,
+    "mean_faithfulness": 0.694,
+    "items_with_cross_paper_entities": [
+      "D04",
+      "D07"
+    ],
+    "failed_top_paper": [
+      "D07"
+    ]
+  },
+  "per_item": [
+    {
+      "id": "D01",
+      "question": "What was the main financial performance finding of Corbett et al. regarding ISO 9000 certification?",
+      "expected_papers": [
+        "P1"
+      ],
+      "expected_behavior": "States the finding plus study context; effects strongest after ~3 years.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.8,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P1",
+          "chunks": 12
+        },
+        {
+          "id": "P2",
+          "chunks": 3
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Corbett et al. found that the decision to seek first ISO 9000 certification was followed by significant abnormal improvements in financial performance. However, the exact timing and magnitude of this effect depend on the specification of the control group. They hypothesized that ISO 9000 certification has a positive effect on profitability regardless of the underlying mechanism, where profitability is commonly measured by return on assets (ROA: operating income / assets) or return on sales (ROS: operating income / sales), both before depreciation.\n\nAccordingly, Corbett et al. proposed Hypothesis 1: ISO 9000 certification leads to an increase in return on assets (ROA) and in return on sales (ROS).\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 49.3
+    },
+    {
+      "id": "D02",
+      "question": "What financial performance measures were used in Corbett et al.'s study of ISO 9000 certification?",
+      "expected_papers": [
+        "P1"
+      ],
+      "expected_behavior": "Must NAME the measures (ROA / ROS), not merely describe the event-study method. Verified present in the graph: 31 Corbett chunks define ROA/ROS/Tobin's Q, so a miss here is a retrieval-relevance failure, not missing data.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.6,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P1",
+          "chunks": 9
+        },
+        {
+          "id": "P2",
+          "chunks": 6
+        }
+      ],
+      "evidence_present": false,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Corbett et al.'s study used financial performance measures to analyze the impact of ISO 9000 certification on firms' financial performance. They employed event study methods to track financial performance from 1987 to 1997 of all publicly traded ISO 9000 certified manufacturing firms in the US with SIC codes 2000-3999. The study found that firm's decision to seek their first ISO 9000 certification was followed by significant abnormal improvements in financial performance, though the exact timing and magnitude of this effect depend on the specification of the control group.\n\nThe event study methods used by Corbett et al. allowed them to compare the financial performance of ISO 9000 certified firms with non-certified firms within the same industry and size. This comparison helped determine whether certification led to productivity improvements, market benefits, or improved financial performance.\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 47.7
+    },
+    {
+      "id": "D03",
+      "question": "What are the three dimensions of supply chain integration studied by Flynn et al.?",
+      "expected_papers": [
+        "P7"
+      ],
+      "expected_behavior": "Names all three: internal, customer, supplier integration.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P7",
+          "chunks": 5
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Flyn et al. study three dimensions of supply chain integration:\n\n1. Internal Integration: This dimension helps manufacturers reduce mistakes and waste through information sharing and joint planning, which is directly related to business performance (Flynn et al., 2010, p. 61).\n\n2. Customer Integration: This dimension allows the manufacturer to better understand customer requirements and forecast demand better, leading to providing better quality products at lower cost and more flexibly, ultimately improving financial performance (Flynn et al., 2010, p. 61).\n\n3. Supplier Integration: This dimension also helps manufacturers reduce mistakes and waste through information sharing and joint planning, which is directly related to business performance (Flynn et al., 2010, p. 61).\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.95,
+      "passed": false,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 9,
+      "seconds": 69.3
+    },
+    {
+      "id": "D04",
+      "question": "What is the relationship between supply chain integration and performance according to Flynn et al.?",
+      "expected_papers": [
+        "P7"
+      ],
+      "expected_behavior": "Reports association with operational and business performance without overclaiming causality.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.867,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P7",
+          "chunks": 13
+        },
+        {
+          "id": "P8",
+          "chunks": 2
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [
+        {
+          "name": "Supply Chain Integration",
+          "documents": [
+            "Flynn_2010_Supply_Chain_Integration_3075d76a",
+            "Zhao_2015_Supply_Chain_Integration_60c1df1f"
+          ]
+        }
+      ],
+      "answer": "The relationship between supply chain integration (SCI) and performance according to Flynn et al. can be summarized as follows:\n\n1. Both contingency and configuration approaches are suggested to study SCI and its impact on performance.\n\n2. Internal integration forms the foundation upon which customer and supplier integration build, suggesting that companies should begin with internal integration before building external customer and supplier integration capabilities (contingency approach).\n\n3. The overall SCI construct is related to both operational and business performance according to the configuration approach. However, supply chain strength was more strongly related to performance than supply chain balance.\n\n4. Internal integration was positively related to business performance while supplier and customer integration were not directly related to business performance. This may be because they are related to business performance through operational performance (contingency approach).\n\n5. The best performance was found when supply chain strength was stronger than supply chain balance, suggesting that companies should focus on developing internal integration capabilities before building external customer and supplier integration capabilities.\n\n6. Prior literature review shows that the relationship between SCI and performance has been studied in terms of individual dimensions such as supplier integration, operational performance, business performance, etc., but not much attention has been given to internal integration (summary of prior literature).\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 43.4
+    },
+    {
+      "id": "D05",
+      "question": "What did Franke and Kaul find about the variables explaining output in the first relay assembly experiment?",
+      "expected_papers": [
+        "P3"
+      ],
+      "expected_behavior": "Names the main explanatory factors (managerial discipline, economic depression, scheduled rest).",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P3",
+          "chunks": 5
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Franke and Kaul (probably referring to the original research) found that experimental variables accounted for some 90% of the variance in quantity and quality of output in the first relay assembly test room at Western Electric. These variables included managerial discipline, economic adversity, and quality of raw materials. The imposition of these variables explained most of the explanation for the group and individual workers' output, obviating the need to draw upon less clearly definable human relations mechanisms.\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.8,
+      "passed": false,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 15,
+      "seconds": 64.1
+    },
+    {
+      "id": "D06",
+      "question": "What did Levitt and List conclude about the commonly described Hawthorne effect?",
+      "expected_papers": [
+        "P4"
+      ],
+      "expected_behavior": "Little systematic evidence that productivity jumped whenever lighting changed. The real criterion is negative: MUST NOT claim lighting always raised productivity. Phrasing varies legitimately ('entirely fictional'), so the positive check is any-of.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.8,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P4",
+          "chunks": 12
+        },
+        {
+          "id": "P3",
+          "chunks": 3
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [
+        "fictional",
+        "less than one percent"
+      ],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Levitt and List concluded that there are hints of more subtle manifestations of a Hawthorne effect in the original data from the Hawthorne illumination experiments, but they found that existing descriptions of supposedly remarkable data patterns were entirely fictional. The directionally consistent pattern of a deviation change in output in response to artificial light greater than for natural light is one such hint. However, this increase in output was less than one percent, which suggests a weak Hawthorne effect rather than the strong effect often described.\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.8,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 22.8
+    },
+    {
+      "id": "D07",
+      "question": "How many servitization strategies did Neely identify?",
+      "expected_papers": [
+        "P6"
+      ],
+      "expected_behavior": "Answer is 12 separate approaches.",
+      "retrieval_hit": true,
+      "top_paper_correct": false,
+      "chunk_precision": 0.2,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P5",
+          "chunks": 12
+        },
+        {
+          "id": "P6",
+          "chunks": 3
+        }
+      ],
+      "evidence_present": false,
+      "missing_required": [
+        "12"
+      ],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [
+        {
+          "name": "Table 3",
+          "documents": [
+            "Neely_2008_Servitization_b5e36f47",
+            "Kohtamaki_2021_Servitization_25216012"
+          ]
+        },
+        {
+          "name": "Servitization",
+          "documents": [
+            "Kohtamaki_2021_Servitization_25216012",
+            "Neely_2008_Servitization_b5e36f47"
+          ]
+        },
+        {
+          "name": "Figure 1",
+          "documents": [
+            "Neely_2008_Servitization_b5e36f47",
+            "Kohtamaki_2021_Servitization_25216012"
+          ]
+        }
+      ],
+      "answer": "The context you provided does not give information about the number of servitization strategies Neely identified. It discusses servitization strategies, target of service (SSP and SSC), analysis of countries based on servitization forms, configurations among servitization level and performance impact concepts, and the importance of organizational structure in evaluating a successful servitization implementation. However, it does not mention how many servitization strategies Neely specifically identified.\n\n[!] Unverified: the answer may not be fully grounded in the sources; the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.0,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 72.5
+    },
+    {
+      "id": "D08",
+      "question": "What is the main explanation for mixed servitization-performance findings proposed by Brax et al.?",
+      "expected_papers": [
+        "P5"
+      ],
+      "expected_behavior": "Depends on servitization strategy/configuration and performance dimension; must not collapse to simply positive or negative.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P5",
+          "chunks": 5
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "The main explanation for the mixed servitization-performance findings proposed by Brax et al. is the configurational theory. This theory is based on propositions that describe three major constellations of servitization and firm performance that fit an S-shaped curve. These constellations explain why servitization can have both positive and negative impacts on firm performance, depending on how firms implement servitization strategies and which performance aspects are examined.\n\nThe study finds a consistent theoretical explanation emerging from these propositions, validating and elaborating pre-existing theoretical understanding described through the dynamics of two \"servitization paradoxes\". The configurational analysis connects the theory and the mixed results in a mutually reinforcing relationship.\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.2,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": false,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 13,
+      "seconds": 82.5
+    }
+  ]
+}

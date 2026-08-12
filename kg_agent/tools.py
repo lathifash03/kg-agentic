@@ -147,9 +147,14 @@ def kg_stats(client: Neo4jClient, cfg: Config) -> Dict[str, Any]:
 ToolFn = Callable[..., Dict[str, Any]]
 
 
+# Setiap entri WAJIB punya ``writes``: True kalau tool-nya menyentuh graph
+# dengan operasi tulis. Dipakai API untuk menolak tool tulis saat read-only,
+# jadi tool baru yang lupa menandainya akan gagal keras di ``tool_writes``
+# ketimbang diam-diam lolos sebagai read-only.
 TOOLS: Dict[str, Dict[str, Any]] = {
     "answer_question": {
         "fn": answer_question,
+        "writes": False,
         "description": "Jawab pertanyaan terhadap knowledge graph dengan "
         "verifikasi trust/temporal/faithfulness.",
         "parameters": {
@@ -160,6 +165,7 @@ TOOLS: Dict[str, Dict[str, Any]] = {
     },
     "ingest_meeting": {
         "fn": ingest_meeting,
+        "writes": True,
         "description": "Simpan hasil meeting (judul, tanggal, peserta, catatan, "
         "entitas yang dibahas) ke knowledge graph.",
         "parameters": {
@@ -176,6 +182,7 @@ TOOLS: Dict[str, Dict[str, Any]] = {
     },
     "kg_stats": {
         "fn": kg_stats,
+        "writes": False,
         "description": "Statistik ringkas knowledge graph.",
         "parameters": {"type": "object", "properties": {}},
     },
@@ -183,17 +190,58 @@ TOOLS: Dict[str, Dict[str, Any]] = {
 
 
 def tool_specs() -> List[Dict[str, Any]]:
-    """Spec semua tool tanpa fungsi Python-nya (aman untuk JSON)."""
+    """Spec semua tool tanpa fungsi Python-nya (aman untuk JSON).
+
+    Sengaja TIDAK memuat ``writes``: hasil fungsi ini dikirim apa adanya
+    sebagai schema ``function`` ke Ollama (lihat ``ollama_tool_specs``), jadi
+    field non-standar tidak boleh bocor ke sana. Konsumen yang butuh tahu
+    sifat tulis sebuah tool memanggil :func:`tool_writes`.
+    """
     return [
         {"name": name, "description": t["description"], "parameters": t["parameters"]}
         for name, t in TOOLS.items()
     ]
 
 
+def tool_writes(name: str) -> bool:
+    """True kalau tool ``name`` menulis ke graph.
+
+    Raises
+    ------
+    KeyError
+        Kalau tool tidak dikenal, atau terdaftar tanpa flag ``writes`` - lebih
+        baik gagal keras daripada menganggap tool tak bertanda sebagai aman.
+    """
+    if name not in TOOLS:
+        raise KeyError(f"Unknown tool: {name!r}. Available: {sorted(TOOLS)}")
+    if "writes" not in TOOLS[name]:
+        raise KeyError(f"Tool {name!r} tidak menyatakan flag 'writes'.")
+    return bool(TOOLS[name]["writes"])
+
+
 def call_tool(
     name: str, client: Neo4jClient, cfg: Config, arguments: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
-    """Dispatch pemanggilan tool berdasarkan nama."""
+    """Dispatch pemanggilan tool berdasarkan nama.
+
+    Titik sempit tunggal untuk semua eksekusi tool - API, orchestrator lewat
+    API, maupun orchestrator lewat CLI. Guard read-only ditegakkan di sini,
+    bukan di lapisan HTTP, supaya route baru atau pemanggil baru tidak bisa
+    membuka lubangnya lagi karena lupa memeriksa.
+
+    Raises
+    ------
+    KeyError
+        Tool tidak dikenal.
+    PermissionError
+        Tool menulis sementara ``KG_READ_ONLY`` aktif.
+    """
     if name not in TOOLS:
         raise KeyError(f"Unknown tool: {name!r}. Available: {sorted(TOOLS)}")
+    if tool_writes(name) and cfg.safety.read_only:
+        raise PermissionError(
+            f"Tool {name!r} menulis ke graph, sedangkan KG_READ_ONLY aktif. "
+            "Set KG_READ_ONLY=false untuk mengizinkan - pastikan dulu ada izin "
+            "tulis ke graph tujuan."
+        )
     return TOOLS[name]["fn"](client, cfg, **(arguments or {}))

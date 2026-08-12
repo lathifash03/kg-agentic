@@ -349,11 +349,19 @@ class RetrievedContext:
         Supporting chunk texts used as grounding context.
     strategy
         Which retrieval strategy produced this result.
+    documents
+        ``{name, chunks}`` per source document the retrieved chunks came from,
+        most-cited first. Empty unless ``chunk_source_property`` is configured.
+    entity_documents
+        Entity name -> the documents that mention it, for spotting entities
+        whose names collide across documents.
     """
 
     node_names: List[str]
     chunks: List[str]
     strategy: str
+    documents: List[Dict[str, Any]] = field(default_factory=list)
+    entity_documents: Dict[str, List[str]] = field(default_factory=dict)
 
     def context_text(self, max_chars: int = 4000) -> str:
         """Concatenate the supporting chunks into a single context string."""
@@ -383,20 +391,34 @@ def _embed_query_ollama(query: str, config: Config) -> Optional[List[float]]:
 def _expand_rows_to_context(
     rows: List[Dict[str, Any]], strategy: str, max_sources: Optional[int] = None
 ) -> RetrievedContext:
-    """Turn ``{text, entity_names}`` rows into a deduplicated RetrievedContext.
+    """Turn ``{text, entity_names, source_doc}`` rows into a deduplicated
+    RetrievedContext.
 
     Entities are ranked by how many retrieved chunks mention them (a proxy for
     relevance to the query) and capped at ``max_sources`` so broad chunks do not
     flood the source list. Chunk order (relevance) is used to break ties.
+
+    ``source_doc`` is only present when a chunk source property is configured;
+    when absent the document fields stay empty and nothing else changes.
     """
     chunks: List[str] = []
     counts: Dict[str, int] = {}
     first_seen: Dict[str, int] = {}
     display: Dict[str, str] = {}
+    doc_counts: Dict[str, int] = {}
+    doc_first_seen: Dict[str, int] = {}
+    entity_docs: Dict[str, List[str]] = {}
     order = 0
+    doc_order = 0
     for row in rows:
         if row.get("text"):
             chunks.append(row["text"])
+        doc = row.get("source_doc")
+        if doc:
+            doc_counts[doc] = doc_counts.get(doc, 0) + 1
+            if doc not in doc_first_seen:
+                doc_first_seen[doc] = doc_order
+                doc_order += 1
         for n in row.get("entity_names") or []:
             if not n:
                 continue
@@ -406,12 +428,25 @@ def _expand_rows_to_context(
                 first_seen[key] = order
                 display[key] = n
                 order += 1
+            if doc and doc not in entity_docs.setdefault(key, []):
+                entity_docs[key].append(doc)
     # Rank: most-mentioned first, then earliest retrieved (most relevant chunk).
     ranked = sorted(counts.keys(), key=lambda k: (-counts[k], first_seen[k]))
     if max_sources is not None:
         ranked = ranked[:max_sources]
     names = [display[k] for k in ranked]
-    return RetrievedContext(node_names=names, chunks=chunks, strategy=strategy)
+    # Documents ranked the same way: most chunks retrieved from it first.
+    documents = [
+        {"name": d, "chunks": doc_counts[d]}
+        for d in sorted(doc_counts, key=lambda d: (-doc_counts[d], doc_first_seen[d]))
+    ]
+    return RetrievedContext(
+        node_names=names,
+        chunks=chunks,
+        strategy=strategy,
+        documents=documents,
+        entity_documents={display[k]: entity_docs[k] for k in ranked if entity_docs.get(k)},
+    )
 
 
 def _chunk_to_entity_pattern(client: Neo4jClient, config: Config) -> str:
@@ -424,6 +459,17 @@ def _chunk_to_entity_pattern(client: Neo4jClient, config: Config) -> str:
         chunk_label=escape_label(config.retrieval.chunk_label),
         entity_label=client._label,
     )
+
+
+def _chunk_source_expression(config: Config) -> str:
+    """Render the Cypher expression yielding a chunk's source document.
+
+    Returns the literal ``null`` when no chunk source property is configured,
+    so the surrounding query shape stays identical either way and callers can
+    always read a ``source_doc`` column.
+    """
+    prop = config.retrieval.chunk_source_property
+    return f"c.{escape_label(prop)}" if prop else "null"
 
 
 def retrieve_vector(client: Neo4jClient, config: Config, query: str, k: int) -> Optional[RetrievedContext]:
@@ -443,11 +489,13 @@ def retrieve_vector(client: Neo4jClient, config: Config, query: str, k: int) -> 
     pattern = _chunk_to_entity_pattern(client, config)
     chunk_label = escape_label(config.retrieval.chunk_label)
     text_prop = config.retrieval.chunk_text_property
+    source_expr = _chunk_source_expression(config)
     cypher = f"""
         CALL db.index.vector.queryNodes($index, $k, $vec) YIELD node AS c, score
         WHERE c:{chunk_label} AND score >= $min_score
         OPTIONAL MATCH {pattern}
-        RETURN c.{text_prop} AS text, score, collect(DISTINCT e.{client._name_prop}) AS entity_names
+        RETURN c.{text_prop} AS text, score, {source_expr} AS source_doc,
+               collect(DISTINCT e.{client._name_prop}) AS entity_names
         ORDER BY score DESC
     """
     try:
@@ -502,6 +550,7 @@ def retrieve_keyword(client: Neo4jClient, config: Config, query: str, k: int) ->
     pattern = _chunk_to_entity_pattern(client, config)
     chunk_label = escape_label(config.retrieval.chunk_label)
     text_prop = config.retrieval.chunk_text_property
+    source_expr = _chunk_source_expression(config)
     cypher = f"""
         MATCH (c:{chunk_label})
         WHERE any(t IN $terms WHERE toLower(c.{text_prop}) CONTAINS t)
@@ -510,7 +559,8 @@ def retrieve_keyword(client: Neo4jClient, config: Config, query: str, k: int) ->
         ORDER BY hits DESC, elementId(c)
         LIMIT $k
         MATCH {pattern}
-        RETURN c.{text_prop} AS text, collect(DISTINCT e.{client._name_prop}) AS entity_names
+        RETURN c.{text_prop} AS text, {source_expr} AS source_doc,
+               collect(DISTINCT e.{client._name_prop}) AS entity_names
     """
     rows = client.run_read(cypher, terms=terms, k=k)
     return _expand_rows_to_context(rows, "keyword", config.retrieval.max_sources)
@@ -601,13 +651,20 @@ class VerifiedAnswer:
     passed
         Whether all gates passed without needing a disclaimer.
     retries
-        How many re-retrievals were performed.
+        How many re-retrievals were performed (attempts run minus one). This
+        counts the loop's actual work, which is not always the attempt index of
+        the answer being returned: when two attempts tie on confidence the
+        earlier one wins the argmax, so its index would under-report the
+        retrieval that really happened.
     strategy
         The retrieval strategy that produced the final answer.
     explanation
         Human-readable summary of the verification decision.
     disclaimer
         A non-empty caveat when gates failed, else ``""``.
+    documents_used
+        ``{name, chunks}`` per source document the answer drew on, most-cited
+        first. Empty unless a chunk source property is configured.
     """
 
     query: str
@@ -622,6 +679,7 @@ class VerifiedAnswer:
     strategy: str
     explanation: str
     disclaimer: str = ""
+    documents_used: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a JSON-serialisable dictionary of the verified answer."""
@@ -734,8 +792,10 @@ class AgenticVerifier:
         max_attempts = cfg.verifier.max_retries + 1
 
         best: Optional[VerifiedAnswer] = None
+        attempts_run = 0
 
         for attempt in range(max_attempts):
+            attempts_run += 1
             strategy = strategies[min(attempt, len(strategies) - 1)]
 
             # 1. Retrieve (or use caller-supplied nodes on the first attempt).
@@ -743,10 +803,14 @@ class AgenticVerifier:
                 names = node_names
                 context = self._context_for_names(names)
                 strategy = "caller-supplied"
+                documents: List[Dict[str, Any]] = []
+                entity_documents: Dict[str, List[str]] = {}
             else:
                 ctx = retrieve(self.client, cfg, query, strategy, cfg.retrieval.top_k)
                 names = ctx.node_names
                 context = ctx.context_text()
+                documents = ctx.documents
+                entity_documents = ctx.entity_documents
 
             # 2. Generate a grounded answer.
             answer = self._generate_answer(query, context)
@@ -778,7 +842,7 @@ class AgenticVerifier:
             validity_ok = len(failing) == 0
             passed = faithfulness_ok and trust_ok and validity_ok
 
-            sources_used = self._build_sources(report, scores, names)
+            sources_used = self._build_sources(report, scores, names, entity_documents)
             overall = self._overall_confidence(faithfulness, mean_trust, valid_fraction)
             explanation = self._explain(
                 strategy, faithfulness_ok, trust_ok, validity_ok,
@@ -797,6 +861,7 @@ class AgenticVerifier:
                 retries=attempt,
                 strategy=strategy,
                 explanation=explanation,
+                documents_used=documents,
             )
 
             # Keep the most confident attempt seen so far.
@@ -827,6 +892,13 @@ class AgenticVerifier:
 
         # All attempts exhausted: return the best, with a disclaimer.
         assert best is not None
+        # The argmax keeps the FIRST of two equally-confident candidates, so
+        # `best` can be an earlier attempt than the last one actually run (seen
+        # live on "How many servitization strategies did Neely identify?": both
+        # attempts scored faithfulness 0.0, attempt 0 won the tie, and the
+        # retrieval performed for attempt 1 went unreported). Report the loop's
+        # own count so `retries` never under-states the work done.
+        best.retries = attempts_run - 1
         best.disclaimer = self._disclaimer(best)
         best.answer = f"{best.answer}\n\n[!] {best.disclaimer}"
         return best
@@ -854,21 +926,30 @@ class AgenticVerifier:
         report: List[NodeValidity],
         scores: List[Any],
         names: List[str],
+        entity_documents: Optional[Dict[str, List[str]]] = None,
     ) -> List[Dict[str, Any]]:
-        """Assemble per-source detail combining validity and trust."""
+        """Assemble per-source detail combining validity and trust.
+
+        ``documents`` is only attached when retrieval reported per-entity
+        provenance, so a source that turns out to be mentioned by several
+        documents is visible rather than silently conflated.
+        """
         trust_by_id = {s.element_id: s.trust_score for s in scores}
+        docs_by_name = {k.lower(): v for k, v in (entity_documents or {}).items()}
         out: List[Dict[str, Any]] = []
         for r in report:
-            out.append(
-                {
-                    "name": r.name,
-                    "temporal_status": r.status.value,
-                    "trust_score": trust_by_id.get(r.element_id),
-                    "age_days": r.age_days,
-                    "used": r.status.value not in self.config.verifier.failing_statuses,
-                    "reasons": r.reasons,
-                }
-            )
+            entry = {
+                "name": r.name,
+                "temporal_status": r.status.value,
+                "trust_score": trust_by_id.get(r.element_id),
+                "age_days": r.age_days,
+                "used": r.status.value not in self.config.verifier.failing_statuses,
+                "reasons": r.reasons,
+            }
+            docs = docs_by_name.get((r.name or "").lower())
+            if docs:
+                entry["documents"] = docs
+            out.append(entry)
         return out
 
     def _explain(

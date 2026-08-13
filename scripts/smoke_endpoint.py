@@ -72,10 +72,36 @@ def request(url: str, payload=None, timeout: int = 30):
         return None, f"{type(exc).__name__}: {exc}"
 
 
+def tcp_open(base: str, timeout: float = 5.0) -> bool:
+    """True if something accepts a TCP connection at ``base``'s host:port."""
+    import socket
+    from urllib.parse import urlparse
+
+    u = urlparse(base)
+    port = u.port or (443 if u.scheme == "https" else 80)
+    try:
+        with socket.create_connection((u.hostname, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
 def l1_health(base: str) -> bool:
-    code, body = request(f"{base}/health", timeout=10)
+    # /health calls verify_connectivity(), which blocks on the Neo4j driver's
+    # own TCP timeout. When Neo4j has no route that wait runs far past a
+    # typical HTTP timeout, so a short one here reports "service down" for a
+    # service that is up and about to answer "degraded". Probe the socket
+    # first, then allow the slow path the time it actually needs.
+    listening = tcp_open(base)
+    code, body = request(f"{base}/health", timeout=90)
     if code is None:
-        record("L1 health", FAIL, f"unreachable - {body}")
+        if listening:
+            record("L1 health", FAIL,
+                   f"port is open but /health did not answer within 90s - the "
+                   f"Neo4j connectivity check is most likely hanging on an "
+                   f"unroutable host. Detail: {body}")
+        else:
+            record("L1 health", FAIL, f"nothing listening on that host:port - {body}")
         return False
     if code != 200:
         record("L1 health", FAIL, f"HTTP {code}: {body}")

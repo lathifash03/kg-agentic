@@ -209,6 +209,16 @@ def l4_l5_retrieval(base: str, timeout: int) -> bool:
                    "one the chunks were embedded with (this fails silently: two "
                    "different 1024-dim models produce no error, just noise scores)")
         ok = False
+    elif not docs:
+        # Sources without documents means retrieval worked but provenance is
+        # switched off, so a caller cannot tell which paper an answer came
+        # from. The answer is still usable; the citation is not there.
+        record("L4 retrieval", WARN,
+               f"{len(srcs)} sources but ZERO documents in {secs}s - "
+               "KG_CHUNK_SOURCE_PROP is unset, so answers carry no citation and "
+               "every provenance metric reads zero. Set it to the chunk property "
+               "holding the document name (usually `filename`) and restart.")
+        ok = True
     else:
         got = ", ".join(f"{d['name'][:34]}:{d['chunks']}" for d in docs[:3])
         record("L4 retrieval", PASS, f"{len(docs)} docs / {len(srcs)} sources in {secs}s [{got}]")

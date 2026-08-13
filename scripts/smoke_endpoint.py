@@ -107,8 +107,15 @@ def l1_health(base: str) -> bool:
         record("L1 health", FAIL, f"HTTP {code}: {body}")
         return False
     if not isinstance(body, dict) or not body.get("neo4j_connected"):
-        record("L1 health", FAIL, f"Neo4j not connected: {body}")
-        return False
+        # The service itself is up; only the graph is missing. Record the
+        # failure, but keep going - L2 and L3 never touch Neo4j, and the write
+        # guard is exactly what you want to confirm while the graph is still
+        # unreachable rather than after.
+        record("L1 health", FAIL,
+               f"service is up but Neo4j is NOT connected: {body}. "
+               "Answers will have no sources. Continuing with the checks that "
+               "do not need the graph.")
+        return True
     ro = body.get("read_only")
     record("L1 health", PASS, f"up, neo4j connected, read_only={ro}")
     if ro is None:

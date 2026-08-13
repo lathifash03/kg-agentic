@@ -164,6 +164,15 @@ def l3_write_guard(base: str) -> bool:
     return False
 
 
+def graph_entity_count(base: str):
+    """Entities in the graph via the read-only kg_stats tool, or None."""
+    code, body = request(f"{base}/tools/kg_stats", {"arguments": {}}, timeout=30)
+    if code != 200 or not isinstance(body, dict):
+        return None
+    result = body.get("result")
+    return result.get("entities") if isinstance(result, dict) else None
+
+
 def l4_l5_retrieval(base: str, timeout: int) -> bool:
     t0 = time.time()
     code, body = request(f"{base}/query", {"query": IN_CORPUS}, timeout=timeout)
@@ -178,10 +187,27 @@ def l4_l5_retrieval(base: str, timeout: int) -> bool:
     docs = body.get("documents_used") or []
     srcs = body.get("sources_used") or []
     if not docs and not srcs:
-        record("L4 retrieval", FAIL,
-               f"ZERO sources after {secs}s - embedding model most likely does not "
-               "match the one the chunks were embedded with (this fails silently: "
-               "two different 1024-dim models produce no error, just noise scores)")
+        # Zero sources has two very different causes, and guessing wrong sends
+        # you debugging the wrong system. Ask the graph how much it holds:
+        # an empty graph is a loading problem, a populated one that still
+        # returns nothing is an embedding-model mismatch.
+        entities = graph_entity_count(base)
+        if entities == 0:
+            record("L4 retrieval", FAIL,
+                   f"ZERO sources after {secs}s because THE GRAPH IS EMPTY "
+                   "(0 entities). Nothing was ever loaded into this Neo4j - "
+                   "the embedding model is not the problem here.")
+        elif entities is None:
+            record("L4 retrieval", FAIL,
+                   f"ZERO sources after {secs}s, and the graph size could not be "
+                   "read. Check that Neo4j holds data before suspecting the "
+                   "embedding model.")
+        else:
+            record("L4 retrieval", FAIL,
+                   f"ZERO sources after {secs}s from a graph holding {entities} "
+                   "entities - the embedding model most likely does not match the "
+                   "one the chunks were embedded with (this fails silently: two "
+                   "different 1024-dim models produce no error, just noise scores)")
         ok = False
     else:
         got = ", ".join(f"{d['name'][:34]}:{d['chunks']}" for d in docs[:3])
@@ -225,6 +251,14 @@ def l6_negative(base: str, timeout: int) -> bool:
                f"out-of-corpus question returned {len(docs)} docs in {secs}s - the "
                "similarity threshold is not filtering; L4 passing may be meaningless")
         return False
+    # An empty graph returns nothing for everything, so a "pass" here would be
+    # vacuous - it proves the threshold works only when there was something it
+    # could have wrongly matched.
+    if graph_entity_count(base) == 0:
+        record("L6 negative ctl", WARN,
+               "returned no documents, but the graph is empty so this proves "
+               "nothing about the similarity threshold")
+        return True
     record("L6 negative ctl", PASS, f"correctly returned no documents ({secs}s)")
     return True
 

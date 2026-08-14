@@ -224,9 +224,17 @@ class LLMConfig:
     # Shared output-length cap applied identically to every real provider so a
     # benchmark measures the model, not differing default token budgets.
     max_tokens: int = field(default_factory=lambda: _env_int("KG_LLM_MAX_TOKENS", 512))
-    # Per-request timeout (seconds). Local CPU inference of a 7-8B model is slow,
-    # so this defaults high; lower it for fast cloud providers if you prefer.
-    request_timeout: int = field(default_factory=lambda: _env_int("KG_LLM_TIMEOUT", 600))
+    # Per-call timeout (seconds) - this is per LLM call, not per HTTP request.
+    # One /query makes up to 2 calls per attempt (answer + judge) x (max_retries
+    # + 1) attempts, so the worst case a caller can observe is roughly
+    #   timeout * 2 * (max_retries + 1).
+    # Keep that product under the HTTP client's own timeout. Nothing cancels an
+    # in-flight call when the caller disconnects (the endpoint is a sync `def`
+    # running urllib in the threadpool), so a value larger than the client's
+    # budget means the server keeps burning a worker and an Ollama slot on a
+    # request nobody is waiting for any more. 120s leaves ~20x headroom over a
+    # measured GPU call and still covers a CPU fallback of a 7-8B model.
+    request_timeout: int = field(default_factory=lambda: _env_int("KG_LLM_TIMEOUT", 120))
 
 
 @dataclass

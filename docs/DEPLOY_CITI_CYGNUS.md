@@ -146,8 +146,23 @@ Yang perlu Rio tahu tentang bentuk jawabannya:
 - **Korpus baru 4 dari 8 paper** (Hawthorne + servitization ada; ISO dan supply
   chain integration hilang). Pertanyaan di luar dua topik itu akan balik tanpa
   sumber. Sedang diperbaiki Nabhyla/Wildan.
-- Satu request memakan **40–180 detik** (inferensi CPU + kemungkinan satu retry).
-  Set timeout klien minimal 300 detik.
+- **Latensi terukur 0,5–7 detik**, bukan 40–180 detik seperti versi lama catatan
+  ini. Angka lama berasal dari asumsi inferensi CPU yang **sudah tidak berlaku**
+  di server ini: `/api/ps` menunjukkan `hermes3:3b` dilayani Ollama 100% di VRAM
+  (`size_vram == size`), terukur ~4.900 tok/s prompt eval dan ~245 tok/s
+  generasi. Jalur retry (`retries: 1`) pun selesai 3,5 detik.
+  Sampling 2026-08-14, 5 query, model sudah warm, satu klien. **Konkurensi belum
+  diuji** — Ollama menyerialisasi request, jadi wall time ikut naik seiring
+  kedalaman antrean kalau Rio menembak paralel.
+- **Timeout klien tetap 300 detik** — jangan diturunkan. Itu bukan perkiraan
+  latensi, melainkan pasangan dari plafon sisi server: `KG_LLM_TIMEOUT=60`
+  berlaku **per panggilan LLM**, dan satu `/query` memanggil LLM sampai 4x
+  (2 per attempt x 2 attempt), jadi server dibatasi `60 x 2 x 2 = 240` detik —
+  tepat di bawah 300. Kalau plafon server melewati budget klien, klien menyerah
+  duluan sementara server terus membakar worker dan slot Ollama untuk request
+  yang sudah tidak ditunggu siapa pun.
+- Untuk UX: harapkan **di bawah 10 detik**, jangan bangun spinner 3 menit. 300
+  detik itu batas aman untuk kasus patologis, bukan waktu tunggu normal.
 
 ## Mode read-only — jangan dimatikan tanpa izin tulis
 

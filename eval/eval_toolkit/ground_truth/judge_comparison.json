@@ -18,9 +18,9 @@
       ],
       "accuracy": 0.917,
       "kappa": 0.833,
-      "mean_faithful": 0.648,
+      "mean_faithful": 0.63,
       "mean_unfaithful": 0.0,
-      "gap": 0.648
+      "gap": 0.63
     },
     "mock-lexical": {
       "pred": [

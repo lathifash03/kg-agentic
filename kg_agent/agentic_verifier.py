@@ -623,6 +623,15 @@ _EMPTY_ANSWER_MESSAGE = (
     "The model did not produce an answer for this query (empty response)."
 )
 
+# Returned by _generate_answer when retrieval found nothing at all. Like the
+# sentinel above it must never reach the judge: "no context was retrieved" is
+# trivially consistent with having no sources, so a judge scores it 1.0 and the
+# blended confidence then rates a failed lookup ABOVE a successful one (observed
+# live: an out-of-corpus query scored 0.80 while a correctly-answered one scored
+# 0.69). Same class as the empty-answer bug, which fixed one sentinel and left
+# this one behind.
+_NO_CONTEXT_MESSAGE = "No supporting context was retrieved for this query."
+
 
 # =========================================================================== #
 # Verifier
@@ -726,7 +735,7 @@ class AgenticVerifier:
         case, so it gets its own explicit sentinel.
         """
         if not context.strip():
-            return "No supporting context was retrieved for this query."
+            return _NO_CONTEXT_MESSAGE
         user = f"QUESTION: {query}\n\nCONTEXT:\n{context}"
         raw = self.llm.complete(_ANSWER_SYSTEM, user).strip()
         return raw or _EMPTY_ANSWER_MESSAGE
@@ -734,13 +743,17 @@ class AgenticVerifier:
     def _check_faithfulness(self, answer: str, context: str) -> Dict[str, Any]:
         """Run the Step 3 faithfulness check, returning a parsed result dict.
 
-        An empty/sentinel answer is never sent to the judge - there is no
-        real content to check faithfulness against, and asking anyway risks a
-        misleadingly non-zero score for literally nothing (observed live:
-        hermes3:3b scored an empty answer 0.70, clearing the 0.7 gate).
+        Neither sentinel is ever sent to the judge - there is no real content to
+        check faithfulness against, and asking anyway earns a misleadingly high
+        score for nothing (observed live: hermes3:3b scored an empty answer
+        0.70, clearing the 0.7 gate; and scored "no context was retrieved" a
+        perfect 1.0, which made a failed lookup outrank a successful one on
+        overall confidence).
         """
-        if not answer.strip() or answer.strip() == _EMPTY_ANSWER_MESSAGE:
-            return {"faithfulness": 0.0, "verdict": "empty_answer", "unsupported_claims": []}
+        stripped = answer.strip()
+        if not stripped or stripped in (_EMPTY_ANSWER_MESSAGE, _NO_CONTEXT_MESSAGE):
+            verdict = "no_context" if stripped == _NO_CONTEXT_MESSAGE else "empty_answer"
+            return {"faithfulness": 0.0, "verdict": verdict, "unsupported_claims": []}
         user = f"ANSWER: {answer}\n\nSOURCES: {context}"
         raw = self.judge.complete(_FAITHFULNESS_SYSTEM, user)
         return _parse_faithfulness(raw)

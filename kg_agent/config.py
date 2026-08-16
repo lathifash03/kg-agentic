@@ -419,6 +419,43 @@ class SafetyConfig:
 
 
 # --------------------------------------------------------------------------- #
+# Derived provenance (feeds Phase 3 trust with real inputs)
+# --------------------------------------------------------------------------- #
+@dataclass
+class ProvenanceConfig:
+    """How ``kg_agent.provenance`` turns graph evidence into a confidence.
+
+    Only used by that module; Phase 1's constant-stamping migration is
+    unaffected. See its docstring for what each factor is taken to mean and why
+    the recency term is deliberately left out.
+    """
+
+    # Mentions at which support saturates. Past this, more mentions say little:
+    # the gap between 1 and 3 is informative, between 20 and 23 is not.
+    support_saturation: int = field(
+        default_factory=lambda: _env_int("KG_PROV_SATURATION", 8)
+    )
+    # Corroboration dominates: being mentioned repeatedly is stronger evidence
+    # than merely having been classified.
+    weight_support: float = field(
+        default_factory=lambda: _env_float("KG_PROV_W_SUPPORT", 0.7)
+    )
+    weight_structure: float = field(
+        default_factory=lambda: _env_float("KG_PROV_W_STRUCTURE", 0.3)
+    )
+    # An entity that was extracted at all is weak evidence, not absent
+    # evidence - and a zero here would wipe out the whole trust product.
+    confidence_floor: float = field(
+        default_factory=lambda: _env_float("KG_PROV_CONFIDENCE_FLOOR", 0.1)
+    )
+    # Provenance of the SOURCE, not of the extraction. Every chunk in a paper
+    # corpus is source_kind='pdf' from a peer-reviewed article.
+    source_type: str = field(
+        default_factory=lambda: _env_str("KG_PROV_SOURCE_TYPE", "paper")
+    )
+
+
+# --------------------------------------------------------------------------- #
 # Operational audit trail
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -467,6 +504,7 @@ class Config:
     orchestrator: OrchestratorConfig = field(default_factory=OrchestratorConfig)
     safety: SafetyConfig = field(default_factory=SafetyConfig)
     audit: AuditConfig = field(default_factory=AuditConfig)
+    provenance: ProvenanceConfig = field(default_factory=ProvenanceConfig)
 
 
 def get_config() -> Config:

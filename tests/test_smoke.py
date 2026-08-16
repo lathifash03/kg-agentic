@@ -1397,21 +1397,168 @@ def test_stats_tool_still_not_audited(tmp_path):
 
 
 
-def test_test_suite_does_not_write_into_the_repo_log_dir():
-    """Audit defaults to ./logs, so a test using an unmodified config would
-    quietly append to the working tree. Every audited call in this file must
-    either disable the audit or point it at a tmp_path.
+def _log_dir_snapshot():
+    """Sizes of any audit files present, taken at import time - before any test
+    runs - so a developer's own logs from running the API locally are not
+    mistaken for test output.
     """
     import pathlib as _p
 
     stray = _p.Path("logs")
     if not stray.exists():
-        return
-    for f in stray.glob("*.jsonl"):
-        assert f.stat().st_size == 0, (
-            f"{f} was written during the test run - a test is using the default "
-            "audit directory instead of tmp_path"
+        return {}
+    return {f.name: f.stat().st_size for f in stray.glob("*.jsonl")}
+
+
+_LOG_DIR_AT_IMPORT = _log_dir_snapshot()
+
+
+def test_test_suite_does_not_write_into_the_repo_log_dir():
+    """Audit defaults to ./logs, so a test using an unmodified config would
+    quietly append to the working tree. Every audited call in this file must
+    either disable the audit or point it at a tmp_path.
+
+    Compares against a snapshot taken at import time rather than asserting the
+    directory is empty: running the API locally legitimately leaves files there.
+    """
+    after = _log_dir_snapshot()
+    grew = {
+        name: (_LOG_DIR_AT_IMPORT.get(name, 0), size)
+        for name, size in after.items()
+        if size != _LOG_DIR_AT_IMPORT.get(name, 0)
+    }
+    assert not grew, (
+        f"logs/ changed during the test run ({grew}) - a test is using the "
+        "default audit directory instead of tmp_path"
+    )
+
+
+
+def test_no_context_answer_scores_zero_faithfulness_without_asking_the_judge():
+    """A lookup that found nothing must not outrank one that succeeded.
+
+    "No supporting context was retrieved" is trivially consistent with having
+    no sources, so a judge scores it 1.0. Blended with a full validity term
+    (nothing failed, because nothing was retrieved) that put a failed query at
+    0.80 confidence against 0.69 for a correctly answered one.
+    """
+    from kg_agent.agentic_verifier import _NO_CONTEXT_MESSAGE
+
+    judge = _FakeCompletionLLM('{"faithfulness": 1.0, "verdict": "supported"}')
+    verifier = _bare_verifier(llm=None, judge=judge)
+
+    result = verifier._check_faithfulness(_NO_CONTEXT_MESSAGE, "")
+
+    assert result["faithfulness"] == 0.0
+    assert result["verdict"] == "no_context"
+    assert judge.calls == [], "the judge must never see a no-context sentinel"
+
+
+def test_empty_context_produces_the_no_context_sentinel():
+    """_generate_answer and _check_faithfulness must agree on the exact string,
+    or the short-circuit silently stops matching.
+    """
+    from kg_agent.agentic_verifier import _NO_CONTEXT_MESSAGE
+
+    verifier = _bare_verifier(llm=_FakeCompletionLLM("unused"))
+    assert verifier._generate_answer("anything", "   ") == _NO_CONTEXT_MESSAGE
+
+
+
+# --------------------------------------------------------------------------- #
+# Derived provenance - feeds Phase 3 trust with real inputs
+# --------------------------------------------------------------------------- #
+def test_support_score_saturates_and_is_monotonic():
+    """More mentions never lower the score, and a hub entity cannot run away
+    with a value that flattens everything else by comparison.
+    """
+    from kg_agent.provenance import support_score
+
+    scores = [support_score(n, 8) for n in (0, 1, 2, 3, 8, 25, 500)]
+    assert scores == sorted(scores)
+    assert scores[0] == 0.0
+    assert scores[-1] == 1.0
+    assert support_score(8, 8) == 1.0
+
+
+def test_derived_confidence_separates_well_attested_from_one_off():
+    """The whole point: a load-bearing concept must outrank a passing mention."""
+    from kg_agent.config import get_config
+    from kg_agent.provenance import derive_confidence
+
+    cfg = get_config()
+    strong = derive_confidence(25, True, True, True, cfg)["confidence_score"]
+    weak = derive_confidence(1, False, False, False, cfg)["confidence_score"]
+
+    assert strong == 1.0
+    assert weak < 0.4 < strong
+    assert weak >= cfg.provenance.confidence_floor
+
+
+def test_derived_confidence_never_reaches_zero():
+    """A zero would wipe out the trust product regardless of the other factors,
+    and an entity that was extracted at all is weak evidence, not none.
+    """
+    from kg_agent.config import get_config
+    from kg_agent.provenance import derive_confidence
+
+    cfg = get_config()
+    assert derive_confidence(0, False, False, False, cfg)["confidence_score"] >= (
+        cfg.provenance.confidence_floor
+    )
+
+
+def test_derived_provenance_actually_varies():
+    """Guards the failure this module exists to fix: a single constant across
+    every node makes the trust gate indistinguishable from no gate.
+    """
+    from kg_agent.config import get_config
+    from kg_agent.provenance import derive_confidence
+
+    cfg = get_config()
+    combos = [
+        (1, False, False, False), (1, True, False, False), (1, True, True, False),
+        (3, True, True, True), (12, True, True, True), (25, True, True, True),
+    ]
+    values = {derive_confidence(*c, cfg)["confidence_score"] for c in combos}
+    assert len(values) >= 5, f"expected a spread, got {sorted(values)}"
+
+
+def test_derived_confidence_feeds_the_unchanged_trust_formula():
+    """The formula is untouched - only its inputs stop being defaults."""
+    from kg_agent.config import get_config
+    from kg_agent.node_trust import compute_trust
+    from kg_agent.provenance import derive_confidence
+
+    cfg = get_config()
+    conf = derive_confidence(25, True, True, True, cfg)["confidence_score"]
+    entity = {
+        "element_id": "1", "name": "Servitization",
+        "confidence_score": conf, "source_type": "paper",
+    }
+    score = compute_trust(entity, cfg)
+    # paper weight 1.0, no timestamp so recency is neutral 1.0
+    assert score.source_weight == 1.0
+    assert score.recency_factor == 1.0
+    assert score.trust_score == round(conf * 1.0 * 1.0, 4)
+    assert score.trust_score >= cfg.verifier.min_trust_score
+
+
+def test_provenance_summary_reports_the_spread():
+    from kg_agent.provenance import DerivedProvenance, summarise
+
+    def row(conf):
+        return DerivedProvenance(
+            element_id="x", name="n", chunks=1, documents=1, has_type=True,
+            has_subtopic=False, has_relation=False, support_score=0.0,
+            structure_score=0.0, confidence_score=conf, source_type="paper",
         )
+
+    out = summarise([row(0.22), row(0.45), row(0.9)])
+    assert out["count"] == 3
+    assert out["min"] == 0.22
+    assert out["max"] == 0.9
+    assert out["distinct_values"] == 3
 
 
 if __name__ == "__main__":

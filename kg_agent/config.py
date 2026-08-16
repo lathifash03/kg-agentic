@@ -433,6 +433,15 @@ class AuditConfig:
     """
 
     enabled: bool = field(default_factory=lambda: _env_bool("KG_AUDIT_LOG", True))
+    # Question answering is audited too, to its own file. Separate switch
+    # because query traffic is far higher volume than writes, so an operator
+    # may want the write trail without the query trail.
+    log_queries: bool = field(default_factory=lambda: _env_bool("KG_AUDIT_QUERIES", True))
+    # The question text itself. Kept by default - without it the log cannot
+    # explain why a query returned nothing, which is its main use.
+    log_query_text: bool = field(
+        default_factory=lambda: _env_bool("KG_AUDIT_QUERY_TEXT", True)
+    )
     directory: str = field(default_factory=lambda: _env_str("KG_AUDIT_LOG_DIR", "logs"))
     retention_days: int = field(
         default_factory=lambda: _env_int("KG_AUDIT_RETENTION_DAYS", 30)

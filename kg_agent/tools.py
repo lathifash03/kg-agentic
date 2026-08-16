@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 from kg_agent.agentic_verifier import AgenticVerifier
-from kg_agent.audit_log import record_tool_call
+from kg_agent.audit_log import record_tool_call, should_audit
 from kg_agent.config import Config
 from kg_agent.neo4j_client import Neo4jClient
 
@@ -250,10 +250,11 @@ def call_tool(
     ditegakkan di sini, bukan di lapisan HTTP, supaya route baru atau pemanggil
     baru tidak bisa melewatkan keduanya karena lupa.
 
-    Tool yang menulis dicatat satu baris JSON per panggilan - termasuk yang
-    DITOLAK - ke ``logs/<nama-tool>.jsonl``. Percobaan yang ditolak justru yang
-    paling perlu terekam: itu satu-satunya jejak bahwa ada yang mencoba menulis
-    ke graph. Isi payload tidak pernah ikut tercatat, hanya ukuran dan hitungan.
+Tool yang menulis DAN tool tanya-jawab dicatat satu baris JSON per
+    panggilan - termasuk yang DITOLAK - ke ``logs/<nama-tool>.jsonl``.
+    Percobaan yang ditolak justru yang paling perlu terekam: itu satu-satunya
+    jejak bahwa ada yang mencoba menulis ke graph. Isi payload tulis tidak
+    pernah tercatat, hanya ukuran dan hitungan.
 
     Parameters
     ----------
@@ -272,7 +273,9 @@ def call_tool(
         raise KeyError(f"Unknown tool: {name!r}. Available: {sorted(TOOLS)}")
 
     writes = tool_writes(name)
-    audit = cfg.audit.enabled and writes
+    audit = cfg.audit.enabled and should_audit(
+        name, writes, log_queries=cfg.audit.log_queries
+    )
     request_id = str(uuid.uuid4()) if audit else ""
     started = time.perf_counter()
 
@@ -290,6 +293,7 @@ def call_tool(
             caller=caller,
             directory=cfg.audit.directory,
             retention_days=cfg.audit.retention_days,
+            include_query_text=cfg.audit.log_query_text,
         )
 
     if writes and cfg.safety.read_only:

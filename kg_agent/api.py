@@ -149,10 +149,13 @@ def invoke_tool(name: str, body: ToolCallRequest, request: Request) -> Dict[str,
 
 
 @app.post("/query")
-def query(body: QueryRequest) -> Dict[str, Any]:
+def query(body: QueryRequest, request: Request) -> Dict[str, Any]:
     cfg = app.state.cfg
     if not (body.agentic or cfg.orchestrator.enabled):
-        return call_tool("answer_question", app.state.client, cfg, {"query": body.query})
+        return call_tool(
+            "answer_question", app.state.client, cfg, {"query": body.query},
+            caller=_caller(request),
+        )
 
     try:
         result = run_orchestrated(app.state.client, cfg, body.query)

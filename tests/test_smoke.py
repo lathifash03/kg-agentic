@@ -1247,6 +1247,153 @@ def test_ingest_meeting_counters_cover_linked_entities():
     assert out["counters"]["relationships_created"] == 2
 
 
+
+def _query_lines(tmpdir):
+    import json
+    import pathlib as _p
+
+    path = _p.Path(tmpdir) / "answer_question.jsonl"
+    if not path.exists():
+        return []
+    return [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
+
+
+VERIFIED_ANSWER = {
+    "answer": "Levitt and List found the described pattern was fictional. " * 4,
+    "passed": False,
+    "faithfulness": 0.7,
+    "trust_score": 0.2,
+    "overall_confidence": 0.69,
+    "temporal_validity_status": "VALID",
+    "strategy": "keyword",
+    "retries": 1,
+    "sources_used": [{"name": "Hawthorne Effect"}, {"name": "Productivity"}],
+    "documents_used": [{"name": "Levitt_2009", "chunks": 12}],
+}
+
+
+def test_query_audit_records_gate_outcome_and_retrieval(tmp_path):
+    """Latency alone cannot explain a bad answer; the gate outcome and which
+    documents were cited are what make production behaviour reviewable.
+    """
+    from kg_agent.tools import TOOLS, call_tool
+
+    cfg = _audit_cfg(tmp_path, read_only=True)
+    original = TOOLS["answer_question"]["fn"]
+    TOOLS["answer_question"]["fn"] = lambda client, config, **kw: VERIFIED_ANSWER
+    try:
+        call_tool("answer_question", None, cfg,
+                  {"query": "What did Levitt conclude?"}, caller="10.0.0.9")
+    finally:
+        TOOLS["answer_question"]["fn"] = original
+
+    entry = _query_lines(tmp_path)[0]
+    assert entry["status"] == "success"
+    assert entry["caller"] == "10.0.0.9"
+    assert entry["duration_ms"] >= 0
+    assert entry["passed"] is False
+    assert entry["faithfulness"] == 0.7
+    assert entry["strategy"] == "keyword"
+    assert entry["retries"] == 1
+    assert entry["n_sources"] == 2
+    assert entry["documents"] == ["Levitt_2009"]
+    assert entry["query"] == "What did Levitt conclude?"
+
+
+def test_query_audit_stores_answer_length_not_answer_text(tmp_path):
+    """The answer is reproducible by re-running; storing it only bloats a log
+    that is kept for a month.
+    """
+    from kg_agent.tools import TOOLS, call_tool
+
+    cfg = _audit_cfg(tmp_path, read_only=True)
+    original = TOOLS["answer_question"]["fn"]
+    TOOLS["answer_question"]["fn"] = lambda client, config, **kw: VERIFIED_ANSWER
+    try:
+        call_tool("answer_question", None, cfg, {"query": "q"})
+    finally:
+        TOOLS["answer_question"]["fn"] = original
+
+    raw = (tmp_path / "answer_question.jsonl").read_text()
+    assert "fictional" not in raw
+    assert _query_lines(tmp_path)[0]["answer_chars"] == len(VERIFIED_ANSWER["answer"])
+
+
+def test_query_text_can_be_switched_off(tmp_path):
+    from kg_agent.tools import TOOLS, call_tool
+
+    cfg = _audit_cfg(tmp_path, read_only=True)
+    cfg.audit.log_query_text = False
+    original = TOOLS["answer_question"]["fn"]
+    TOOLS["answer_question"]["fn"] = lambda client, config, **kw: VERIFIED_ANSWER
+    try:
+        call_tool("answer_question", None, cfg, {"query": "a secret question"})
+    finally:
+        TOOLS["answer_question"]["fn"] = original
+
+    raw = (tmp_path / "answer_question.jsonl").read_text()
+    assert "secret question" not in raw
+    assert "query" not in _query_lines(tmp_path)[0]
+    # Size is still recorded, so volume stays analysable.
+    assert _query_lines(tmp_path)[0]["input_size_chars"] == len("a secret question")
+
+
+def test_query_logging_can_be_disabled_without_affecting_writes(tmp_path):
+    """Query traffic dwarfs writes, so an operator may want only the write
+    trail - and turning queries off must not silently drop the write trail.
+    """
+    import pytest
+
+    from kg_agent.tools import TOOLS, call_tool
+
+    cfg = _audit_cfg(tmp_path, read_only=True)
+    cfg.audit.log_queries = False
+    original = TOOLS["answer_question"]["fn"]
+    TOOLS["answer_question"]["fn"] = lambda client, config, **kw: VERIFIED_ANSWER
+    try:
+        call_tool("answer_question", None, cfg, {"query": "q"})
+    finally:
+        TOOLS["answer_question"]["fn"] = original
+    assert not (tmp_path / "answer_question.jsonl").exists()
+
+    with pytest.raises(PermissionError):
+        call_tool("ingest_meeting", None, cfg, {"title": "Sync"})
+    assert len(_audit_lines(tmp_path)) == 1
+
+
+def test_query_audit_records_a_failure(tmp_path):
+    import pytest
+
+    from kg_agent.tools import TOOLS, call_tool
+
+    cfg = _audit_cfg(tmp_path, read_only=True)
+
+    def boom(client, config, **kw):
+        raise RuntimeError("ollama unreachable")
+
+    original = TOOLS["answer_question"]["fn"]
+    TOOLS["answer_question"]["fn"] = boom
+    try:
+        with pytest.raises(RuntimeError):
+            call_tool("answer_question", None, cfg, {"query": "q"})
+    finally:
+        TOOLS["answer_question"]["fn"] = original
+
+    entry = _query_lines(tmp_path)[0]
+    assert entry["status"] == "failed"
+    assert "ollama unreachable" in entry["error"]
+
+
+def test_stats_tool_still_not_audited(tmp_path):
+    """Only writes and question answering are worth a persistent record."""
+    from kg_agent.audit_log import should_audit
+
+    assert should_audit("ingest_meeting", True) is True
+    assert should_audit("answer_question", False) is True
+    assert should_audit("answer_question", False, log_queries=False) is False
+    assert should_audit("kg_stats", False) is False
+
+
 if __name__ == "__main__":
     import pytest as _pytest
 

@@ -6,14 +6,26 @@ asked to change the graph, when, how long it took, and whether it was allowed -
 so it is written as machine-readable JSONL and kept for a retention window
 measured in weeks rather than until the next restart.
 
-Only tools flagged as writing are audited. Read tools would bury the file under
-query traffic, and reads change nothing worth reconstructing later.
+Two kinds of call are audited, each to its own file: tools that WRITE to the
+graph, and question answering. Everything else (plain statistics lookups) is
+skipped - it changes nothing and answers nothing worth reconstructing later.
 
-**No payload content is ever written.** Meeting transcripts are the whole point
+The two differ in what is worth recording, so each contributes its own fields
+on top of the shared ones: a write reports how many nodes it created, a
+question reports the gate outcome, retrieval strategy and which documents were
+cited. Sharing one module keeps rotation, failure handling and line format
+identical across both.
+
+**Write payloads are never recorded.** Meeting transcripts are the whole point
 of the write path and the one thing that must not leak into a log file that is
-read over SSH and kept for a month. Only sizes and counts are recorded; the
-line below is the complete set of fields, and there is no passthrough of
-arbitrary payload keys that could carry text in later.
+read over SSH and kept for a month. Only sizes and counts are stored, and there
+is no passthrough of arbitrary payload keys that could carry text in later.
+
+Question text is the deliberate exception: it is the request itself rather than
+confidential source material, and without it the log cannot answer "why did
+this query return nothing", which is the main reason to keep it. Set
+``KG_AUDIT_QUERY_TEXT=false`` to drop it. Generated answers are never stored -
+only their length, since the text is reproducible by re-running the query.
 
 Files land one per tool, so ``ingest_meeting`` writes ``ingest_meeting.jsonl``.
 Rotation is daily with ``retention_days`` files kept.
@@ -96,17 +108,59 @@ def payload_size_chars(arguments: Optional[Dict[str, Any]]) -> int:
     return total
 
 
-def _counters(result: Any) -> Dict[str, Optional[int]]:
-    """Pull mutation counts out of a tool result, tolerating any shape."""
-    if not isinstance(result, dict):
-        return {"nodes_created": None, "relationships_created": None}
-    counters = result.get("counters")
+def _summarise_write(result: Any) -> Dict[str, Any]:
+    """Mutation counts from a write tool, tolerating any result shape."""
+    counters = result.get("counters") if isinstance(result, dict) else None
     if not isinstance(counters, dict):
         return {"nodes_created": None, "relationships_created": None}
     return {
         "nodes_created": counters.get("nodes_created"),
         "relationships_created": counters.get("relationships_created"),
     }
+
+
+def _summarise_answer(result: Any) -> Dict[str, Any]:
+    """Gate outcome and retrieval shape from a verified answer.
+
+    These are the fields that make production behaviour answerable after the
+    fact: how often retrieval retries, which papers actually get cited, how
+    faithfulness is distributed, and whether an empty result came from a query
+    that matched nothing or from a graph that holds nothing.
+    """
+    if not isinstance(result, dict):
+        return {}
+    documents = result.get("documents_used") or []
+    sources = result.get("sources_used") or []
+    return {
+        "passed": result.get("passed"),
+        "faithfulness": result.get("faithfulness"),
+        "trust_score": result.get("trust_score"),
+        "overall_confidence": result.get("overall_confidence"),
+        "temporal_validity_status": result.get("temporal_validity_status"),
+        "strategy": result.get("strategy"),
+        "retries": result.get("retries"),
+        "n_sources": len(sources),
+        "n_documents": len(documents),
+        "documents": [d.get("name") for d in documents if isinstance(d, dict)],
+        "answer_chars": len(result.get("answer") or ""),
+    }
+
+
+# A tool is audited when it writes, or when it appears here. `kg_stats` has
+# neither, so it stays out of the log rather than adding noise.
+_SUMMARISERS = {
+    "ingest_meeting": _summarise_write,
+    "answer_question": _summarise_answer,
+}
+
+
+def should_audit(tool: str, writes: bool, *, log_queries: bool = True) -> bool:
+    """True when calls to ``tool`` belong in the audit trail."""
+    if writes:
+        return True
+    if tool == "answer_question":
+        return log_queries
+    return tool in _SUMMARISERS
 
 
 def record_tool_call(
@@ -121,29 +175,37 @@ def record_tool_call(
     caller: Optional[str] = None,
     directory: str = "logs",
     retention_days: int = 30,
+    include_query_text: bool = True,
 ) -> Optional[Dict[str, Any]]:
     """Append one audit line. Returns the entry written, or ``None``.
 
     ``status`` is ``success``, ``failed`` or ``rejected_403``. Never raises.
     """
     try:
-        counts = _counters(result)
-        meeting_id = (arguments or {}).get("meeting_id")
+        args = arguments or {}
+        meeting_id = args.get("meeting_id")
         if meeting_id is None and isinstance(result, dict):
             meeting_id = result.get("meeting_id")
         entry = {
             "request_id": request_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "tool": tool,
-            "meeting_id": meeting_id,
             "caller": caller or "local",
             "status": status,
             "duration_ms": round(duration_ms, 1),
-            "input_size_chars": payload_size_chars(arguments),
-            "nodes_created": counts["nodes_created"],
-            "relationships_created": counts["relationships_created"],
-            "error": (error[:_MAX_ERROR_CHARS] if error else None),
+            "input_size_chars": payload_size_chars(args),
         }
+        if meeting_id is not None:
+            entry["meeting_id"] = meeting_id
+        elif tool == "ingest_meeting":
+            entry["meeting_id"] = None
+        # The question itself, opt-out. Never the generated answer.
+        if tool == "answer_question" and include_query_text:
+            entry["query"] = args.get("query")
+        summarise = _SUMMARISERS.get(tool)
+        if summarise is not None:
+            entry.update(summarise(result))
+        entry["error"] = error[:_MAX_ERROR_CHARS] if error else None
         sink = _sink(tool, directory, retention_days)
         if sink is not None:
             sink.info(json.dumps(entry, ensure_ascii=False, default=str))

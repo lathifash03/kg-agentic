@@ -74,6 +74,7 @@ def test_call_tool_refuses_write_tool_when_read_only():
 
     cfg = get_config()
     cfg.safety.read_only = True
+    cfg.audit.enabled = False  # guard under test, not the audit trail
 
     with pytest.raises(PermissionError, match="KG_READ_ONLY"):
         call_tool("ingest_meeting", None, cfg, {"title": "standup"})
@@ -108,6 +109,7 @@ def test_call_tool_allows_write_tool_when_writes_enabled():
 
     cfg = get_config()
     cfg.safety.read_only = False
+    cfg.audit.enabled = False  # otherwise this writes into the repo's logs/
 
     original = TOOLS["ingest_meeting"]["fn"]
     TOOLS["ingest_meeting"]["fn"] = lambda client, config, **kw: {"ok": True, **kw}
@@ -1392,6 +1394,24 @@ def test_stats_tool_still_not_audited(tmp_path):
     assert should_audit("answer_question", False) is True
     assert should_audit("answer_question", False, log_queries=False) is False
     assert should_audit("kg_stats", False) is False
+
+
+
+def test_test_suite_does_not_write_into_the_repo_log_dir():
+    """Audit defaults to ./logs, so a test using an unmodified config would
+    quietly append to the working tree. Every audited call in this file must
+    either disable the audit or point it at a tmp_path.
+    """
+    import pathlib as _p
+
+    stray = _p.Path("logs")
+    if not stray.exists():
+        return
+    for f in stray.glob("*.jsonl"):
+        assert f.stat().st_size == 0, (
+            f"{f} was written during the test run - a test is using the default "
+            "audit directory instead of tmp_path"
+        )
 
 
 if __name__ == "__main__":

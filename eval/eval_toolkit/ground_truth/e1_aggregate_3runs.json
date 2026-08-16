@@ -1,0 +1,63 @@
+{
+  "runs": [
+    "results_sentinelfix_2026-08-16.json",
+    "results_sentinelfix_run2.json",
+    "results_sentinelfix_run3.json"
+  ],
+  "n_runs": 3,
+  "overall_accuracy": {
+    "median": 0.75,
+    "min": 0.75,
+    "max": 0.75
+  },
+  "false_pass": {
+    "median": 0,
+    "min": 0,
+    "max": 0
+  },
+  "false_block": {
+    "median": 0,
+    "min": 0,
+    "max": 0
+  },
+  "per_category": {
+    "a_answerable_good": {
+      "median": 6,
+      "min": 6,
+      "max": 6,
+      "total": 6
+    },
+    "b_out_of_scope": {
+      "median": 5,
+      "min": 4,
+      "max": 5,
+      "total": 6
+    },
+    "c_low_trust": {
+      "median": 1,
+      "min": 1,
+      "max": 2,
+      "total": 5
+    },
+    "d_temporal_invalid": {
+      "median": 3,
+      "min": 3,
+      "max": 3,
+      "total": 3
+    }
+  },
+  "items_stable": 18,
+  "items_total": 20,
+  "unstable_items": {
+    "b02": [
+      "NO_INFO",
+      "TEMPORAL_FLAGGED",
+      "NO_INFO"
+    ],
+    "c01": [
+      "TEMPORAL_FLAGGED",
+      "RELEASE_WITH_DISCLAIMER",
+      "TEMPORAL_FLAGGED"
+    ]
+  }
+}

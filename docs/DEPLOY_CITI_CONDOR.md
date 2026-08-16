@@ -10,18 +10,21 @@ Kontrak API untuk Rio, aturan read-only, dan bentuk unit systemd tidak berubah:
 lihat [DEPLOY_CITI_CYGNUS.md](DEPLOY_CITI_CYGNUS.md). Dokumen ini memuat yang
 **berbeda** di condor + jejak deploy aktual.
 
-## Neo4j — berubah dari rencana awal
+## Neo4j — KG resmi ada di cygnus (bukan lagi laptop Wildan)
 
-Rencana semula "tetap tunjuk `bolt://100.110.179.78:7687`" **gugur**: dari condor,
-host itu (node Windows `nigger`, milik `wildanfauzy4@`) tidak terjangkau di TCP.
-`tailscale ping` lolos (WireGuard 5ms) tapi TCP 7687/7474 **timeout (di-drop)**,
-bukan refused — firewall Windows di host itu meng-allow IP cygnus tapi belum IP
-condor. Bukan sesuatu yang bisa kita perbaiki dari condor; butuh Wildan menambah
-IP condor `100.122.56.39` ke Windows Firewall inbound 7687+7474.
+**Target final:** `bolt://100.118.203.111:7690` (user `sinyo`, read-only; browser
+`http://100.118.203.111:7475`) — KG Wildan/Nabhyla sudah **dipindah dari laptop
+Wildan ke server cygnus**. Sesama tailnet arya dengan condor, jadi terjangkau
+tanpa urusan firewall. Kredensial di `~/kg-agent/.env`, bukan di sini. Ini yang
+sudah dipakai service condor sejak deploy.
 
-**Dipakai sekarang:** instance Neo4j baru `bolt://100.118.203.111:7690` (browser
-`http://100.118.203.111:7475`) — di cygnus, sesama tailnet, jadi terjangkau dari
-condor tanpa urusan firewall. Kredensial di `~/kg-agent/.env`, bukan di sini.
+> Catatan historis: node lama `bolt://100.110.179.78:7687` (PC Windows
+> `nigger`, `wildanfauzy4@`) **tidak dipakai lagi**. Dari condor host itu memang
+> tak terjangkau di TCP (`tailscale ping` lolos, tapi TCP 7687/7474 di-drop
+> firewall Windows — allow cygnus, belum condor). Karena KG sudah pindah ke
+> cygnus, ini tidak perlu diperbaiki; dicatat hanya supaya tak ada yang mencoba
+> mengarahkan condor ke IP itu lagi.
+
 Introspeksi 2026-08-14:
 
     814 chunk · 1531 :Topic · 1739 MENTIONS · index `vector`

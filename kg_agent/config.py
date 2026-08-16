@@ -419,6 +419,27 @@ class SafetyConfig:
 
 
 # --------------------------------------------------------------------------- #
+# Operational audit trail
+# --------------------------------------------------------------------------- #
+@dataclass
+class AuditConfig:
+    """JSONL audit trail for tool calls that change the graph.
+
+    Retention defaults to 30 days rather than the few days a debug log would
+    warrant: this is an operational record of who changed a shared knowledge
+    graph, which is the kind of question asked weeks later, not the same day.
+
+    Never stores payload content - see :mod:`kg_agent.audit_log`.
+    """
+
+    enabled: bool = field(default_factory=lambda: _env_bool("KG_AUDIT_LOG", True))
+    directory: str = field(default_factory=lambda: _env_str("KG_AUDIT_LOG_DIR", "logs"))
+    retention_days: int = field(
+        default_factory=lambda: _env_int("KG_AUDIT_RETENTION_DAYS", 30)
+    )
+
+
+# --------------------------------------------------------------------------- #
 # Root config
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -436,6 +457,7 @@ class Config:
     verifier: VerifierConfig = field(default_factory=VerifierConfig)
     orchestrator: OrchestratorConfig = field(default_factory=OrchestratorConfig)
     safety: SafetyConfig = field(default_factory=SafetyConfig)
+    audit: AuditConfig = field(default_factory=AuditConfig)
 
 
 def get_config() -> Config:

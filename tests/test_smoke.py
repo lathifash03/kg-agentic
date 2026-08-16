@@ -1085,6 +1085,168 @@ def test_retries_is_zero_when_the_first_attempt_passes(monkeypatch):
     assert result.disclaimer == ""
 
 
+
+# --------------------------------------------------------------------------- #
+# Audit trail for write tools
+# --------------------------------------------------------------------------- #
+TRANSCRIPT = (
+    "Budi said the Q3 revenue target is confidential and must not leave the room. "
+    "Siti raised a concern about the vendor contract."
+)
+
+
+def _audit_cfg(tmpdir, read_only):
+    from kg_agent.config import get_config
+
+    cfg = get_config()
+    cfg.safety.read_only = read_only
+    cfg.audit.enabled = True
+    cfg.audit.directory = str(tmpdir)
+    return cfg
+
+
+def _audit_lines(tmpdir):
+    import json
+    import pathlib as _p
+
+    path = _p.Path(tmpdir) / "ingest_meeting.jsonl"
+    if not path.exists():
+        return []
+    return [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
+
+
+def test_audit_records_a_rejected_write(tmp_path):
+    """A refused attempt is the one trace that somebody tried to write at all,
+    so it must be logged even though nothing reached the graph.
+    """
+    import pytest
+
+    from kg_agent.tools import call_tool
+
+    cfg = _audit_cfg(tmp_path, read_only=True)
+    with pytest.raises(PermissionError):
+        call_tool("ingest_meeting", None, cfg,
+                  {"title": "Sync", "notes": TRANSCRIPT}, caller="10.0.0.7")
+
+    lines = _audit_lines(tmp_path)
+    assert len(lines) == 1
+    entry = lines[0]
+    assert entry["status"] == "rejected_403"
+    assert entry["caller"] == "10.0.0.7"
+    assert entry["input_size_chars"] == len("Sync") + len(TRANSCRIPT)
+    assert entry["duration_ms"] >= 0
+    assert entry["request_id"]
+    assert entry["error"]
+
+
+def test_audit_never_writes_transcript_content(tmp_path):
+    """The whole payload of this endpoint is meeting content. None of it may
+    reach a log file that is kept for a month and read over SSH.
+    """
+    import pytest
+
+    from kg_agent.tools import call_tool
+
+    cfg = _audit_cfg(tmp_path, read_only=True)
+    with pytest.raises(PermissionError):
+        call_tool("ingest_meeting", None, cfg,
+                  {"title": "Sync", "notes": TRANSCRIPT,
+                   "participants": ["Budi", "Siti"]})
+
+    raw = (tmp_path / "ingest_meeting.jsonl").read_text()
+    assert TRANSCRIPT not in raw
+    assert "confidential" not in raw
+    assert "vendor contract" not in raw
+    # Size is recorded, content is not.
+    assert str(len("Sync") + len(TRANSCRIPT) + len("Budi") + len("Siti")) in raw
+
+
+def test_audit_records_a_successful_write_with_counts(tmp_path):
+    from kg_agent.tools import TOOLS, call_tool
+
+    cfg = _audit_cfg(tmp_path, read_only=False)
+    original = TOOLS["ingest_meeting"]["fn"]
+    TOOLS["ingest_meeting"]["fn"] = lambda client, config, **kw: {
+        "meeting_id": "4:abc:12",
+        "counters": {"nodes_created": 3, "relationships_created": 2},
+    }
+    try:
+        call_tool("ingest_meeting", None, cfg, {"title": "Sync", "notes": TRANSCRIPT})
+    finally:
+        TOOLS["ingest_meeting"]["fn"] = original
+
+    entry = _audit_lines(tmp_path)[0]
+    assert entry["status"] == "success"
+    assert entry["meeting_id"] == "4:abc:12"
+    assert entry["nodes_created"] == 3
+    assert entry["relationships_created"] == 2
+    assert entry["error"] is None
+
+
+def test_audit_records_a_failed_write(tmp_path):
+    import pytest
+
+    from kg_agent.tools import TOOLS, call_tool
+
+    cfg = _audit_cfg(tmp_path, read_only=False)
+
+    def boom(client, config, **kw):
+        raise RuntimeError("neo4j unreachable")
+
+    original = TOOLS["ingest_meeting"]["fn"]
+    TOOLS["ingest_meeting"]["fn"] = boom
+    try:
+        with pytest.raises(RuntimeError):
+            call_tool("ingest_meeting", None, cfg, {"title": "Sync"})
+    finally:
+        TOOLS["ingest_meeting"]["fn"] = original
+
+    entry = _audit_lines(tmp_path)[0]
+    assert entry["status"] == "failed"
+    assert "neo4j unreachable" in entry["error"]
+
+
+def test_audit_ignores_read_only_tools(tmp_path):
+    """Read tools would bury the file under query traffic and change nothing."""
+    from kg_agent.tools import TOOLS, call_tool
+
+    cfg = _audit_cfg(tmp_path, read_only=True)
+    original = TOOLS["kg_stats"]["fn"]
+    TOOLS["kg_stats"]["fn"] = lambda client, config: {"entities": 1}
+    try:
+        call_tool("kg_stats", None, cfg)
+    finally:
+        TOOLS["kg_stats"]["fn"] = original
+
+    assert not (tmp_path / "kg_stats.jsonl").exists()
+
+
+def test_ingest_meeting_counters_cover_linked_entities():
+    """Counters must total every write, not just the Meeting node - otherwise
+    the audit trail under-reports what a call actually created.
+    """
+    from kg_agent.config import get_config
+    from kg_agent.tools import ingest_meeting
+
+    class _CountingClient:
+        def __init__(self):
+            self.calls = 0
+
+        def run_write(self, cypher, **params):
+            self.calls += 1
+            if self.calls == 1:
+                return {"records": [{"meeting_id": "4:abc:1"}], "nodes_created": 1,
+                        "relationships_created": 0, "properties_set": 5}
+            return {"records": [], "nodes_created": 1,
+                    "relationships_created": 1, "properties_set": 3}
+
+    out = ingest_meeting(_CountingClient(), get_config(), title="Sync",
+                         entities=["Alpha", "Beta"])
+    assert out["meeting_id"] == "4:abc:1"
+    assert out["counters"]["nodes_created"] == 3
+    assert out["counters"]["relationships_created"] == 2
+
+
 if __name__ == "__main__":
     import pytest as _pytest
 

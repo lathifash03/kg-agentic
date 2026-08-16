@@ -28,7 +28,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from kg_agent.config import get_config
@@ -120,10 +120,25 @@ def list_tools() -> Dict[str, Any]:
     return {"tools": tools, "read_only": app.state.cfg.safety.read_only}
 
 
+def _caller(request: Request) -> str:
+    """Best-effort caller identity for the audit trail.
+
+    Prefers the forwarded client address when a reverse proxy is in front,
+    since otherwise every request would be attributed to the proxy itself.
+    """
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 @app.post("/tools/{name}")
-def invoke_tool(name: str, body: ToolCallRequest) -> Dict[str, Any]:
+def invoke_tool(name: str, body: ToolCallRequest, request: Request) -> Dict[str, Any]:
     try:
-        result = call_tool(name, app.state.client, app.state.cfg, body.arguments)
+        result = call_tool(
+            name, app.state.client, app.state.cfg, body.arguments,
+            caller=_caller(request),
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PermissionError as exc:  # write tool while KG_READ_ONLY is on

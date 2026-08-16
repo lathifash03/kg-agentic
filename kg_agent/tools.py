@@ -18,10 +18,13 @@ Menambah tool baru: tulis fungsi, lalu daftarkan di ``TOOLS`` di bawah.
 from __future__ import annotations
 
 import logging
+import time
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 from kg_agent.agentic_verifier import AgenticVerifier
+from kg_agent.audit_log import record_tool_call
 from kg_agent.config import Config
 from kg_agent.neo4j_client import Neo4jClient
 
@@ -89,9 +92,19 @@ def ingest_meeting(
         now=now,
     )
 
+    # Counters from the meeting write only cover the Meeting node. Each linked
+    # entity is a separate write, so totals must be accumulated - otherwise the
+    # audit trail reports 1 node created for a meeting that created twenty.
+    totals = {
+        "nodes_created": result.get("nodes_created", 0),
+        "relationships_created": result.get("relationships_created", 0),
+        "properties_set": result.get("properties_set", 0),
+    }
+    meeting_id = (result.get("records") or [{}])[0].get("meeting_id")
+
     linked: List[str] = []
     for name in entities:
-        client.run_write(
+        entity_result = client.run_write(
             f"""
             MATCH (m:Meeting {{title: $title, date: $date}})
             MERGE (e:`{label}` {{{name_prop}: $name}})
@@ -109,13 +122,16 @@ def ingest_meeting(
             now=now,
             confidence=cfg.temporal_defaults.default_confidence_score,
         )
+        for key in totals:
+            totals[key] += entity_result.get(key, 0)
         linked.append(name)
 
     logger.info("Meeting %r ingested, %d entities linked.", title, len(linked))
     return {
         "meeting": {"title": title, "date": meeting_date, "participants": participants},
+        "meeting_id": meeting_id,
         "entities_linked": linked,
-        "counters": result,
+        "counters": totals,
         "note": "Jalankan ulang trust scoring (POST /setup atau --setup) agar "
         "bobot source_type='meeting' diperhitungkan.",
     }
@@ -220,14 +236,30 @@ def tool_writes(name: str) -> bool:
 
 
 def call_tool(
-    name: str, client: Neo4jClient, cfg: Config, arguments: Optional[Dict[str, Any]] = None
+    name: str,
+    client: Neo4jClient,
+    cfg: Config,
+    arguments: Optional[Dict[str, Any]] = None,
+    *,
+    caller: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Dispatch pemanggilan tool berdasarkan nama.
 
     Titik sempit tunggal untuk semua eksekusi tool - API, orchestrator lewat
-    API, maupun orchestrator lewat CLI. Guard read-only ditegakkan di sini,
-    bukan di lapisan HTTP, supaya route baru atau pemanggil baru tidak bisa
-    membuka lubangnya lagi karena lupa memeriksa.
+    API, maupun orchestrator lewat CLI. Guard read-only DAN audit trail
+    ditegakkan di sini, bukan di lapisan HTTP, supaya route baru atau pemanggil
+    baru tidak bisa melewatkan keduanya karena lupa.
+
+    Tool yang menulis dicatat satu baris JSON per panggilan - termasuk yang
+    DITOLAK - ke ``logs/<nama-tool>.jsonl``. Percobaan yang ditolak justru yang
+    paling perlu terekam: itu satu-satunya jejak bahwa ada yang mencoba menulis
+    ke graph. Isi payload tidak pernah ikut tercatat, hanya ukuran dan hitungan.
+
+    Parameters
+    ----------
+    caller
+        Identitas pemanggil (IP untuk request HTTP). ``None`` untuk pemakaian
+        lokal lewat CLI.
 
     Raises
     ------
@@ -238,10 +270,41 @@ def call_tool(
     """
     if name not in TOOLS:
         raise KeyError(f"Unknown tool: {name!r}. Available: {sorted(TOOLS)}")
-    if tool_writes(name) and cfg.safety.read_only:
-        raise PermissionError(
+
+    writes = tool_writes(name)
+    audit = cfg.audit.enabled and writes
+    request_id = str(uuid.uuid4()) if audit else ""
+    started = time.perf_counter()
+
+    def _audit(status: str, result: Any = None, error: Optional[str] = None) -> None:
+        if not audit:
+            return
+        record_tool_call(
+            tool=name,
+            request_id=request_id,
+            status=status,
+            duration_ms=(time.perf_counter() - started) * 1000,
+            arguments=arguments,
+            result=result,
+            error=error,
+            caller=caller,
+            directory=cfg.audit.directory,
+            retention_days=cfg.audit.retention_days,
+        )
+
+    if writes and cfg.safety.read_only:
+        message = (
             f"Tool {name!r} menulis ke graph, sedangkan KG_READ_ONLY aktif. "
             "Set KG_READ_ONLY=false untuk mengizinkan - pastikan dulu ada izin "
             "tulis ke graph tujuan."
         )
-    return TOOLS[name]["fn"](client, cfg, **(arguments or {}))
+        _audit("rejected_403", error=message)
+        raise PermissionError(message)
+
+    try:
+        result = TOOLS[name]["fn"](client, cfg, **(arguments or {}))
+    except Exception as exc:
+        _audit("failed", error=f"{type(exc).__name__}: {exc}")
+        raise
+    _audit("success", result=result)
+    return result

@@ -60,8 +60,17 @@ def score_retrieval(item: dict, result, papers: dict) -> dict:
     hit_files = want_files & set(by_name)
     got = sum(by_name.get(f, 0) for f in want_files)
 
+    # An item with no expected papers is an ABSTENTION item (level 3 IE): the
+    # corpus cannot answer it, so the correct behaviour is to decline. Every
+    # provenance metric above is undefined here - there is no right paper to
+    # land on - so they are reported as-is but excluded from the aggregates in
+    # main(). What matters instead is how much context leaked in anyway, since
+    # retrieved-but-irrelevant context is exactly what tempts the model to
+    # answer from parametric knowledge.
     file_to_id = {v["filename"]: k for k, v in papers.items()}
     return {
+        "abstention_expected": not item["expected_papers"],
+        "leaked_chunks": total if not item["expected_papers"] else 0,
         "retrieval_hit": bool(hit_files),
         "top_paper_correct": bool(by_name) and max(by_name, key=by_name.get) in want_files,
         "chunk_precision": round(got / total, 3) if total else 0.0,
@@ -166,12 +175,23 @@ def main() -> None:
                 "n_sources": len(r.sources_used or []),
                 "seconds": round(time.time() - t0, 1),
             }
-            per_item.append(rec)
-            ok = (
-                retrieval["top_paper_correct"]
+            # For abstention items "declining" means: a refusal marker is present
+            # AND no forbidden (fabricated) claim is. Both halves are needed - a
+            # hedge bolted onto a fabricated answer is not an abstention.
+            rec["abstained"] = bool(
+                rec["abstention_expected"]
                 and rec["evidence_present"]
                 and not rec["forbidden_present"]
             )
+            per_item.append(rec)
+            if rec["abstention_expected"]:
+                ok = rec["abstained"]
+            else:
+                ok = (
+                    retrieval["top_paper_correct"]
+                    and rec["evidence_present"]
+                    and not rec["forbidden_present"]
+                )
             got = ",".join(f"{p['id']}:{p['chunks']}" for p in retrieval["papers_retrieved"])
             print(f"  {'OK ' if ok else 'XX '}[{it['id']}] "
                   f"want={'+'.join(it['expected_papers']):<7} "
@@ -180,12 +200,20 @@ def main() -> None:
                   f"{' FORBIDDEN' if rec['forbidden_present'] else ''} ({rec['seconds']}s)")
 
     n = max(len(per_item), 1)
+    # Provenance metrics are averaged over answerable items only. Including
+    # abstention items would score them 0 on every retrieval metric for doing
+    # exactly the right thing, dragging the suite average down as a reward for
+    # correct behaviour. With no abstention items present these are unchanged.
+    scored = [r for r in per_item if not r["abstention_expected"]]
+    abst = [r for r in per_item if r["abstention_expected"]]
+    ns, na = max(len(scored), 1), max(len(abst), 1)
     summary = {
         "n_questions": len(per_item),
-        "retrieval_hit_rate": round(sum(r["retrieval_hit"] for r in per_item) / n, 3),
-        "top_paper_accuracy": round(sum(r["top_paper_correct"] for r in per_item) / n, 3),
-        "mean_chunk_precision": round(sum(r["chunk_precision"] for r in per_item) / n, 3),
-        "mean_coverage": round(sum(r["coverage"] for r in per_item) / n, 3),
+        "n_answerable": len(scored),
+        "retrieval_hit_rate": round(sum(r["retrieval_hit"] for r in scored) / ns, 3),
+        "top_paper_accuracy": round(sum(r["top_paper_correct"] for r in scored) / ns, 3),
+        "mean_chunk_precision": round(sum(r["chunk_precision"] for r in scored) / ns, 3),
+        "mean_coverage": round(sum(r["coverage"] for r in scored) / ns, 3),
         "evidence_present_rate": round(sum(r["evidence_present"] for r in per_item) / n, 3),
         "items_with_forbidden_claims": [r["id"] for r in per_item if r["forbidden_present"]],
         "gate_passed_rate": round(sum(r["passed"] for r in per_item) / n, 3),
@@ -194,8 +222,19 @@ def main() -> None:
         "items_with_cross_paper_entities": [
             r["id"] for r in per_item if r["cross_paper_entities"]
         ],
-        "failed_top_paper": [r["id"] for r in per_item if not r["top_paper_correct"]],
+        "failed_top_paper": [r["id"] for r in scored if not r["top_paper_correct"]],
     }
+    if abst:
+        # A gate that passes an abstention item is worse than one that fails it:
+        # it certifies a fabricated answer. Reported separately so it cannot be
+        # mistaken for the ordinary gate_passed_rate.
+        summary.update({
+            "n_abstention": len(abst),
+            "abstention_rate": round(sum(r["abstained"] for r in abst) / na, 3),
+            "items_that_fabricated": [r["id"] for r in abst if not r["abstained"]],
+            "mean_leaked_chunks": round(sum(r["leaked_chunks"] for r in abst) / na, 2),
+            "abstention_items_passing_gate": [r["id"] for r in abst if r["passed"]],
+        })
 
     out_path = pathlib.Path(args.out)
     if not out_path.is_absolute():

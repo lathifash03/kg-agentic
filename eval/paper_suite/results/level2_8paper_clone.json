@@ -1,0 +1,463 @@
+{
+  "summary": {
+    "n_questions": 12,
+    "retrieval_hit_rate": 1.0,
+    "top_paper_accuracy": 1.0,
+    "mean_chunk_precision": 0.955,
+    "mean_coverage": 0.833,
+    "evidence_present_rate": 0.917,
+    "items_with_forbidden_claims": [],
+    "gate_passed_rate": 0.833,
+    "mean_trust": 0.485,
+    "mean_faithfulness": 0.726,
+    "items_with_cross_paper_entities": [
+      "M04"
+    ],
+    "failed_top_paper": []
+  },
+  "per_item": [
+    {
+      "id": "M01",
+      "question": "How do Corbett et al. and Martinez-Costa et al. differ in their findings about ISO certification and firm performance?",
+      "expected_papers": [
+        "P1",
+        "P2"
+      ],
+      "expected_behavior": "Cites BOTH: Corbett finds significant abnormal financial improvement after first certification; Martinez-Costa finds ISO 9001/2000 firms do not noticeably outperform ISO 9000/1994 or non-certified firms despite higher TQM levels. Must not pick one side silently.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P1",
+          "chunks": 11
+        },
+        {
+          "id": "P2",
+          "chunks": 4
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Corbett et al. (2004) found that after a firm decides to seek its first ISO 9000 certification, it experiences significantly better relative performance compared to control firms with similar assets and performance prior to the decision. This suggests that the improvements in Return on Assets (ROA) through increased productivity are due to changes made by certified firms after deciding to get their first ISO 9000 certification.\n\nOn the other hand, Mart\u00ednez-Costa et al. (2002) found that while there is a debate regarding the effects of ISO standards on company performance, companies that implement the standard better in daily practice and as catalysts for change see greater operating performance from its implementation. They also highlighted ongoing debates about the impact of ISO 9000 certification on firm's performance.\n\nThe key difference between Corbett et al.'s findings and Mart\u00ednez-Costa et al.'s is that while Corbett et al. found a positive effect of ISO certification on firm performance, Mart\u00ednez-Costa et al. suggest that companies that implement the standard better see greater benefits from its implementation. Additionally, Corbett et al. used event study methods to track financial performance and find that certified firms experience improved financial performance after deciding to seek their first ISO 9000 certification.\n\nIn summary, while both studies acknowledge ongoing debates about the effects of ISO standards on company performance, Corbett et al. found a positive effect of ISO certification on firm's performance, whereas Mart\u00ednez-Costa et al. suggest that companies that implement the standard better see greater benefits from its implementation.",
+      "trust_score": 0.4842,
+      "temporal_status": "VALID",
+      "faithfulness": 0.7,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 63.9
+    },
+    {
+      "id": "M02",
+      "question": "How do Franke and Kaul's findings differ from Levitt and List's reanalysis of the Hawthorne experiments?",
+      "expected_papers": [
+        "P3",
+        "P4"
+      ],
+      "expected_behavior": "Cites BOTH and must not claim they analysed the same experiment: P3 is the first relay assembly test room, P4 reanalyses the illumination experiments.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 0.5,
+      "papers_retrieved": [
+        {
+          "id": "P4",
+          "chunks": 5
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Franke and Kaul's findings differ from Levitt and List's reanalysis of the Hawthorne experiments primarily in their conclusions about whether there actually existed a Hawthorne effect.\n\nFranke and Kaul (1983) found that descriptions of supposedly remarkable data patterns from the Hawthorne experiments were entirely fictional. They argued that the original data did not support any significant Hawthorne effect. However, they also noted that a na\u00efve misreading of the data might lead someone to falsely conclude that a Hawthorne effect is present.\n\nLevitt and List (2009) reanalyzed the original illumination experiments from the Hawthorne studies. They found hints of subtle manifestations of a Hawthorne effect in the original data. However, they concluded that there was no significant Hawthorne effect in terms of productivity or worker satisfaction.\n\nIn summary, Franke and Kaul's findings are that the Hawthorne effect is likely non-existent based on the original data, while Levitt and List's reanalysis shows hints of a subtle Hawthorne effect but concludes that it does not exist in terms of productivity or worker satisfaction.",
+      "trust_score": 0.4857,
+      "temporal_status": "VALID",
+      "faithfulness": 0.8,
+      "passed": true,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 12,
+      "seconds": 90.4
+    },
+    {
+      "id": "M03",
+      "question": "How do Neely and Brax et al. explain why servitization does not always improve firm performance?",
+      "expected_papers": [
+        "P5",
+        "P6"
+      ],
+      "expected_behavior": "Cites BOTH: Neely reports lower aggregate profit margins and higher bankruptcy risk moderated by firm size; Brax explains it via configuration/servitization level and organizational transformation.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 0.5,
+      "papers_retrieved": [
+        {
+          "id": "P5",
+          "chunks": 5
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Brax et al. (Saara A. Brax et al., 2014) explain why servitization does not always improve firm performance through a configurational theory and a measurement framework. They argue that the relationship between servitization and firm performance cannot be explained by means of service types and profitability alone. Instead, they propose that multiple configurations are needed to understand the paradoxes resulting from this relationship.\n\nThe study identifies financial and non-financial indicators for both servitization and its performance impact, organizing them into a comprehensive measurement framework grounded on existing research. The subsequent meta-analysis shows that the positive or negative impacts of servitization on performance depend on how firms implement servitization strategies and which performance aspects are examined.\n\nThis leads to the identification of patterns that explain the previous mixed results, shaping a configurational theory of servitization (Brax et al., 2014). The measurement framework is conceptually robust and has sufficient detail to capture servitization and its performance outcome as it distinguishes between different organizational configurations. This supports managers of servitizing firms in leading this organizational transformation while avoiding its organizational and financial paradoxes.\n\nIn summary, Brax et al.'s (2014) configurational theory explains the servitization paradox by arguing that the relationship between servitization and firm performance cannot be explained by means of service types and profitability alone. Instead, multiple configurations are needed to understand the paradoxes resulting from this relationship.",
+      "trust_score": 0.4856,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": true,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 11,
+      "seconds": 101.1
+    },
+    {
+      "id": "M04",
+      "question": "How do Flynn et al. and Zhao et al. differ in their explanation of the relationship between supply chain integration and performance?",
+      "expected_papers": [
+        "P7",
+        "P8"
+      ],
+      "expected_behavior": "Cites BOTH: Flynn finds SCI positively related to operational/business performance with internal integration central; Zhao finds an inverted-U where too much SCI can hurt financial performance.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P8",
+          "chunks": 9
+        },
+        {
+          "id": "P7",
+          "chunks": 6
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [
+        {
+          "name": "Supplier Integration",
+          "documents": [
+            "Zhao_2015_Supply_Chain_Integration_60c1df1f",
+            "Flynn_2010_Supply_Chain_Integration_3075d76a"
+          ]
+        }
+      ],
+      "answer": "Flynn et al. and Zhao et al. differ in their explanations of the relationship between supply chain integration and performance primarily in terms of the specific research context, theoretical approach, and empirical findings they present.\n\n1. Flynn et al.'s study (2006a) focuses on the impact of supply chain integration on company performance from an organizational capability perspective. They argue that the relationship between supply chain integration and performance is contingent upon a firm's organizational capabilities. The authors suggest that firms with strong organizational capabilities can leverage their supply chain integration to achieve better performance.\n\n2. Zhao et al.'s study (2006a) examines the impact of supply chain integration on operational performance, specifically focusing on US versus East Asian companies. They argue that the relationship between supply chain integration and performance is contingent upon environmental uncertainty. The authors suggest that in high environmental uncertainty environments, a higher level of supply chain integration is associated with better operational performance.\n\nIn summary, Flynn et al.'s study emphasizes the role of organizational capabilities while Zhao et al.'s study highlights the contingency effect of environmental uncertainty on the relationship between supply chain integration and performance.",
+      "trust_score": 0.4855,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 34.8
+    },
+    {
+      "id": "C01",
+      "question": "Compare the conclusions of Corbett et al. and Martinez-Costa et al. regarding ISO certification and performance.",
+      "expected_papers": [
+        "P1",
+        "P2"
+      ],
+      "expected_behavior": "Must NOT state the two papers agree.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P2",
+          "chunks": 8
+        },
+        {
+          "id": "P1",
+          "chunks": 7
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Corbett et al. conclude that the prescriptions contained in ISO 9000 lead to superior performance. In other words, there is a positive link between abnorm al performance and ISO 9000 certification. Their findings suggest that the prescriptions within the standard itself contribute to better company performance.\n\nOn the other hand, Martinez-Costa et al. also find a significant effect of ISO certification on at least one of the nine performance variables. However, they do not directly compare their conclusions with Corbett et al.'s but rather conclude that certified companies differ from non-certified ones in at least one of the nine dimensions and that ISO 9000/1994 and ISO 9001/2000-certified companies also differ in at least one dimension.\n\nWhile both studies find a positive effect of ISO certification on company performance, Corbett et al. argue that it is due to the prescriptions contained within the standard itself, while Martinez-Costa et al. suggest that certified companies may differ from non-certified ones and ISO 9000/1994 and ISO 9001/2000-certified companies in at least one dimension of their performance.\n\nIn summary, both studies find a positive effect of ISO certification on company performance but Corbett et al. attribute it to the prescriptions within the standard while Martinez-Costa et al. suggest that certified companies may differ from non-certified ones and ISO 9000/1994 and ISO 9001/2000-certified companies in at least one dimension of their performance.",
+      "trust_score": 0.4846,
+      "temporal_status": "VALID",
+      "faithfulness": 0.78,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 48.8
+    },
+    {
+      "id": "C02",
+      "question": "Compare the explanations offered by Franke and Kaul versus Levitt and List for changes in productivity at Hawthorne.",
+      "expected_papers": [
+        "P3",
+        "P4"
+      ],
+      "expected_behavior": "Must distinguish relay assembly experiment from illumination experiments.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P3",
+          "chunks": 8
+        },
+        {
+          "id": "P4",
+          "chunks": 7
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Franke and Kaul compare the Hawthorne effect to potential psychological influences on productivity without providing a specific explanation for the changes they observe. They mention that output tends to be higher during experimental manipulations, suggesting a Hawthorne effect, but do not delve into the underlying mechanisms or provide a detailed comparison with Franke and Kaul.\n\nOn the other hand, Levitt and List discuss their findings which challenge the conventional understanding of the Hawthorne effect. They argue that productivity gains observed in the first year are likely due to managerial discipline rather than a direct impact of lighting changes. The increased importance of jobs and the real danger of losing them during the economic depression may have contributed positively to output quantity for the group and for all individuals.\n\nLevitt and List also point out that worker fatigue did not play much of a role in the first relay experiment, as suggested by the Hawthorne researchers themselves. However, they note that Argyle (1953) and Carey (1967) reached opposite conclusions based on the same evidence. Levitt and List's analysis highlights critical distinctions between the Hawthorne effect and other factors influencing productivity.\n\nIn summary, Franke and Kaul observe higher output during experimental manipulations but do not delve into underlying mechanisms or compare with Levitt and List's findings. Levitt and List challenge conventional understanding of the Hawthorne effect by arguing that managerial discipline, economic depression, and worker fatigue may have contributed to productivity gains in the first year.\n\n[!] Unverified: the answer may not be fully grounded in the sources. Treat this answer with caution.",
+      "trust_score": 0.4853,
+      "temporal_status": "VALID",
+      "faithfulness": 0.4,
+      "passed": false,
+      "retries": 1,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 99.7
+    },
+    {
+      "id": "C03",
+      "question": "Compare Neely's empirical findings with Brax et al.'s configurational explanation of the servitization paradox.",
+      "expected_papers": [
+        "P5",
+        "P6"
+      ],
+      "expected_behavior": "Distinguishes empirical financial-risk evidence from a configurational explanation.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 0.5,
+      "papers_retrieved": [
+        {
+          "id": "P5",
+          "chunks": 5
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Neely's empirical findings compare a comprehensive measurement framework that organizes financial and nonfinancial indicators of servitization and their performance impact. This framework grounds on existing research and shows that the positive or negative impacts of servitization on performance depend on how firms implement servitization strategies and which performance aspects are examined.\n\nOn the other hand, Brax et al.'s configurational explanation of the servitization paradox identifies patterns that explain the mixed results observed in previous studies. They propose three major constellations of servitization and firm performance that fit a S-shaped curve, resulting in a consistent theoretical explanation. The findings both validate and elaborate pre-existing theoretical understanding described through the dynamics of two \"servitization paradoxes\".\n\nWhile Neely's empirical findings provide evidence for the existence of different organizational configurations and their impact on servitization and performance, Brax et al.'s configurational theory explains these patterns in a mutually reinforcing relationship. The S-shaped curve connects the different slopes, showing that there is no general servitization-performance relationship but rather separate cases or positions to be discussed.\n\nIn summary, while Neely's empirical findings provide evidence for the existence of the servitization paradox and its impact on performance, Brax et al.'s configurational theory explains these patterns in a mutually reinforcing relationship. The S-shaped curve connects the different slopes, showing that there is no general servitization-performance relationship but rather separate cases or positions to be discussed.",
+      "trust_score": 0.4856,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": true,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 9,
+      "seconds": 103.5
+    },
+    {
+      "id": "C04",
+      "question": "Compare Flynn et al.'s and Zhao et al.'s conclusions about whether more supply chain integration is beneficial.",
+      "expected_papers": [
+        "P7",
+        "P8"
+      ],
+      "expected_behavior": "Contrasts positive association with the inverted-U nuance.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P8",
+          "chunks": 11
+        },
+        {
+          "id": "P7",
+          "chunks": 4
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Flyn           and   Zhaos  (Flynn, Zhao et al., 2006a) conclusions about the beneficial impact of more supply chain integration differ based on further costs arising over time. While initial benefits such as reduced purchasing and production costs, and mutual understanding between firms are observed, they find that after five years, the overall costs resulting from supplier integration may outweigh these benefits. This finding is consistent with Das et al.'s (2006) recent empirical work which indicates that deviations from an \"optimal\" level of supplier integration are negatively associated with financial performance.\n\nIn contrast to Flynn et al., Zhao et al. do not directly compare the impact of supply chain integration across different companies or regions, but rather focus on the relationship between supplier integration and company performance over time. Their study challenges earlier assumptions of a linear relationship between supplier integration and financial performance, suggesting that while short-term benefits may be observed, long-term costs may outweigh these benefits after five years.\n\nIn summary, both studies suggest that there are potential costs associated with supply chain integration beyond the initial benefits. However, Flynn et al.'s research focuses on comparing US versus East Asian companies, while Zhao et al.'s study examines the impact of supplier integration over time without directly comparing different regions or countries.",
+      "trust_score": 0.4857,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 44.8
+    },
+    {
+      "id": "C05",
+      "question": "Which papers in this knowledge graph provide evidence that a management practice may have nonlinear or context-dependent effects on performance?",
+      "expected_papers": [
+        "P1",
+        "P2",
+        "P5",
+        "P6",
+        "P7",
+        "P8"
+      ],
+      "expected_behavior": "Cross-topic conceptual retrieval: must span several papers rather than keyword-match one. Coverage is the metric here, not precision.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 0.5,
+      "papers_retrieved": [
+        {
+          "id": "P8",
+          "chunks": 3
+        },
+        {
+          "id": "P2",
+          "chunks": 3
+        },
+        {
+          "id": "P7",
+          "chunks": 1
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "The provided context gives evidence that suggests certain research papers provide information about management practices having nonlinear or context-dependent effects on performance. One instance is from the first part of the context where it states:\n\n\"First, it provides empirical evidence for the nonlinear relationship between SCI and financial performance.\"\n\nAnother reference to this can be found in the section \"Contents lists available at ScienceDirect Industrial Marketing Management\":\n\n\"The contents lists demonstrate an inverted U-shaped rather than linear relationship between performance and integration practices. These inverted curvilinear relationships might also explain why some studies have been unable to demonstrate the expected performance gains from SCI (Flynn et al., 2010; Stock et al., 2000; Swink et al., 2007).\"\n\nThis suggests that research papers like Flynn et al. (2010), Stock et al. (2000) and Swink et al. (2007) discuss management practices with nonlinear or context-dependent effects on performance.\n\n[!] Unverified: the answer may not be fully grounded in the sources. Treat this answer with caution.",
+      "trust_score": 0.4861,
+      "temporal_status": "VALID",
+      "faithfulness": 0.67,
+      "passed": false,
+      "retries": 1,
+      "strategy": "vector",
+      "n_sources": 5,
+      "seconds": 77.6
+    },
+    {
+      "id": "H01",
+      "question": "Which supply chain integration dimension did Flynn et al. identify as a foundation for customer and supplier integration, and what performance outcomes was it associated with?",
+      "expected_papers": [
+        "P7"
+      ],
+      "expected_behavior": "Internal integration is the foundation; associated with operational and business performance.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.533,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P7",
+          "chunks": 8
+        },
+        {
+          "id": "P8",
+          "chunks": 7
+        }
+      ],
+      "evidence_present": false,
+      "missing_required": [
+        "internal"
+      ],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Flyn et al. identified 'Supplier's contractual conformance' as one of the supply chain integration dimensions which served as a foundation for customer and supplier integration (Das et al., 2006; Devaraj et al., 2007). This dimension was associated with operational performance.",
+      "trust_score": 0.4847,
+      "temporal_status": "VALID",
+      "faithfulness": 0.9,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 23.9
+    },
+    {
+      "id": "H02",
+      "question": "In Franke and Kaul's analysis, which factors were associated with quantity of output, and which factor was particularly important for quality of output?",
+      "expected_papers": [
+        "P3"
+      ],
+      "expected_behavior": "Quantity: managerial discipline / depression / scheduled rest. Quality: raw material quality. Must keep the two outcomes separate.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P3",
+          "chunks": 2
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "In Franke and Kaul's analysis, the factor 'quality of raw materials' was particularly important for quality of output. Both for the group as well as for individual workers, this factor played a primary role in determining the quality output.\n\nFor quantity of output, managerial intervention in replacing two workers and the advent of economic depression were significant factors that affected all individuals, both individually and as part of the group.",
+      "trust_score": 0.4851,
+      "temporal_status": "VALID",
+      "faithfulness": 0.71,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 8,
+      "seconds": 25.6
+    },
+    {
+      "id": "H03",
+      "question": "According to Brax et al., what organizational condition becomes important when servitization reaches a higher level, and what happens if it is not achieved?",
+      "expected_papers": [
+        "P5"
+      ],
+      "expected_behavior": "Organizational transformation is required; failing it produces the paradox / poorer performance.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.933,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P5",
+          "chunks": 14
+        },
+        {
+          "id": "P6",
+          "chunks": 1
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "According to Brax et al., the organizational condition become important when servitization reaches a higher level, and this is the importance of including the organizational structure in the assessment of any servitization strategy. If it is not achieved, there could be a \"organizational paradox\" which threatens successful adoption of servitization in manufacturing firms. This paradox refers to challenges that arise if an organization does not have the appropriate structure to support higher levels of servitization.",
+      "trust_score": 0.4855,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 23.3
+    }
+  ]
+}

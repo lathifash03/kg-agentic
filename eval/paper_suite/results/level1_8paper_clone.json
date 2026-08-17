@@ -1,0 +1,325 @@
+{
+  "summary": {
+    "n_questions": 8,
+    "retrieval_hit_rate": 1.0,
+    "top_paper_accuracy": 0.625,
+    "mean_chunk_precision": 0.666,
+    "mean_coverage": 1.0,
+    "evidence_present_rate": 0.5,
+    "items_with_forbidden_claims": [],
+    "gate_passed_rate": 0.875,
+    "mean_trust": 0.485,
+    "mean_faithfulness": 0.755,
+    "items_with_cross_paper_entities": [
+      "D04",
+      "D06"
+    ],
+    "failed_top_paper": [
+      "D03",
+      "D04",
+      "D07"
+    ]
+  },
+  "per_item": [
+    {
+      "id": "D01",
+      "question": "What was the main financial performance finding of Corbett et al. regarding ISO 9000 certification?",
+      "expected_papers": [
+        "P1"
+      ],
+      "expected_behavior": "States the finding plus study context; effects strongest after ~3 years.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.8,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P1",
+          "chunks": 12
+        },
+        {
+          "id": "P2",
+          "chunks": 3
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Corbett et al. found that after firm's decision to seek their first ISO 9000 certification, they experienced significantly better relative performance compared to control firms with similar assets and performance prior to that decision. This suggests that the firm made changes that led to improvements in Return on Assets (ROA) through increased productivity.\n\nThe authors conclude that \"ISO 9000 is a qualifying criterion, rather than an order-winning criterion\". They hypothesize that ISO 9000 certification has a positive effect on profitability regardless of the underlying mechanism. Their hypothesis states that ISO 9000 certification leads to an increase in Return on Assets (ROA) and Return on Sales (ROS).\n\nThe study finds that certified firms experience abnormal improvements in financial performance, though the exact timing and magnitude of this effect depend on the specification of the control group. However, closer examination suggests that in many cases, certified firms see only a minor increase in ROA compared to year 2-t levels while non-certified firms see substantial declines.\n\nThe authors conclude that ISO 9000 certification has positive effects on financial performance and can be seen as a signal of good management.",
+      "trust_score": 0.4832,
+      "temporal_status": "VALID",
+      "faithfulness": 0.71,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 59.5
+    },
+    {
+      "id": "D02",
+      "question": "What financial performance measures were used in Corbett et al.'s study of ISO 9000 certification?",
+      "expected_papers": [
+        "P1"
+      ],
+      "expected_behavior": "Must NAME the measures (ROA / ROS), not merely describe the event-study method. Verified present in the graph: 31 Corbett chunks define ROA/ROS/Tobin's Q, so a miss here is a retrieval-relevance failure, not missing data.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.733,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P1",
+          "chunks": 11
+        },
+        {
+          "id": "P2",
+          "chunks": 4
+        }
+      ],
+      "evidence_present": false,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "In Corbett et al.'s study of ISO 9000 certification, they used Tobin's Q as one of the financial performance measures to analyze the impact of ISO 9000 certification on a firm's financial performance. The hypothesis was:\n\nHypothesis 2: ISO 9000 certification leads to an increase in Tobin\u2019s Q.\n\nTobin\u2019s Q can be thought of as a proxy for stock price movement, indicating how much more each dollar is worth in the form of equity (stock) compared to its cash and debt value.\n\n[!] Unverified: the answer may not be fully grounded in the sources. Treat this answer with caution.",
+      "trust_score": 0.4838,
+      "temporal_status": "VALID",
+      "faithfulness": 0.67,
+      "passed": false,
+      "retries": 1,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 90.7
+    },
+    {
+      "id": "D03",
+      "question": "What are the three dimensions of supply chain integration studied by Flynn et al.?",
+      "expected_papers": [
+        "P7"
+      ],
+      "expected_behavior": "Names all three: internal, customer, supplier integration.",
+      "retrieval_hit": true,
+      "top_paper_correct": false,
+      "chunk_precision": 0.333,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P8",
+          "chunks": 10
+        },
+        {
+          "id": "P7",
+          "chunks": 5
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "The three dimensions of supply chain integration studied by Flynn et al. are:\n\n1. Supplier Integration: This refers to the collaboration and coordination between a company and its suppliers. Flynn et al. developed three items based on this aspect of supply chain integration.\n\n2. Customer Integration: Similar to supplier integration, customer integration is about working closely with customers in terms of communication, information sharing, and collaboration. The five items used to measure customer integration were also developed by Flynn et al.\n\n3. Internal Integration: This dimension focuses on the coordination within an organization itself. It involves integrating different departments such as purchasing, production, logistics, and finance. Flynn et al. did not specifically mention how many items they used for internal integration but it is clear that this aspect of supply chain integration was measured in their study.\n\nSo, Flynn et al. studied supplier integration (3 items), customer integration (5 items) and internal integration as dimensions of supply chain integration.",
+      "trust_score": 0.4857,
+      "temporal_status": "VALID",
+      "faithfulness": 0.9,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 14,
+      "seconds": 34.6
+    },
+    {
+      "id": "D04",
+      "question": "What is the relationship between supply chain integration and performance according to Flynn et al.?",
+      "expected_papers": [
+        "P7"
+      ],
+      "expected_behavior": "Reports association with operational and business performance without overclaiming causality.",
+      "retrieval_hit": true,
+      "top_paper_correct": false,
+      "chunk_precision": 0.333,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P8",
+          "chunks": 10
+        },
+        {
+          "id": "P7",
+          "chunks": 5
+        }
+      ],
+      "evidence_present": false,
+      "missing_required": [
+        "operational"
+      ],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [
+        {
+          "name": "Supplier Integration",
+          "documents": [
+            "Flynn_2010_Supply_Chain_Integration_3075d76a",
+            "Zhao_2015_Supply_Chain_Integration_60c1df1f"
+          ]
+        }
+      ],
+      "answer": "The relationship between supply chain integration (SCI) and performance according to Flynn et al. is described by a contingency and configuration approach in their paper titled \"The impact of supply chain integration on performance: A contingency and configuration approach\". They propose that the relationship between SCI and firm performance is contingent upon the level of internal organizational capabilities.\n\nIn simpler terms, the extent to which supply chain integration positively impacts company performance depends on how well a company has developed its internal capabilities. If a company has strong internal capabilities, it can leverage supply chain integration for better performance. Conversely, if a company lacks internal capabilities, supply chain integration may not have much impact on firm performance.",
+      "trust_score": 0.4851,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 31.3
+    },
+    {
+      "id": "D05",
+      "question": "What did Franke and Kaul find about the variables explaining output in the first relay assembly experiment?",
+      "expected_papers": [
+        "P3"
+      ],
+      "expected_behavior": "Names the main explanatory factors (managerial discipline, economic depression, scheduled rest).",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P3",
+          "chunks": 5
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "Franke and Kaul (based on Franke and Kaul's interpretation of Franke and Roethlisberger's findings) found that experimental variables accounted for some 90% of the variance in quantity and quality of output in the first relay assembly test room at Western Electric. These variables included managerial discipline, economic adversity, and quality of raw materials.\n\nMore specifically, period-by-period differences in rate of hourly output over 23 periods could be explained in large part (25% or more) by these categoric variables.",
+      "trust_score": 0.4851,
+      "temporal_status": "VALID",
+      "faithfulness": 0.8,
+      "passed": true,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 15,
+      "seconds": 58.4
+    },
+    {
+      "id": "D06",
+      "question": "What did Levitt and List conclude about the commonly described Hawthorne effect?",
+      "expected_papers": [
+        "P4"
+      ],
+      "expected_behavior": "Little systematic evidence that productivity jumped whenever lighting changed. The real criterion is negative: MUST NOT claim lighting always raised productivity. Phrasing varies legitimately ('entirely fictional'), so the positive check is any-of.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.733,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P4",
+          "chunks": 11
+        },
+        {
+          "id": "P3",
+          "chunks": 4
+        }
+      ],
+      "evidence_present": false,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [
+        {
+          "name": "Background",
+          "documents": [
+            "Levitt_2009_Hawthorne_Effect_e7543894",
+            "Franke_1978_Hawthorne_Effect_6486c95e"
+          ]
+        }
+      ],
+      "answer": "Levitt and List concluded that the evidence for a Hawthorne effect in the studies at the Hawthorne plant is far more subtle than has been previously acknowledged. While there are hints of a Hawthorne effect, it is not as prominently described as commonly believed. Productivity tends to be higher when experimental manipulations are ongoing compared to when there is no experimentation, and productivity is also more responsive to experimenter manipulations of light than naturally-occurring fluctuations. However, the presence and magnitude of the Hawthorne effect depend heavily on economic and psychological features of the environment, which can only be understood with further theoretical and empirical modeling.",
+      "trust_score": 0.4857,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 31.5
+    },
+    {
+      "id": "D07",
+      "question": "How many servitization strategies did Neely identify?",
+      "expected_papers": [
+        "P6"
+      ],
+      "expected_behavior": "Answer is 12 separate approaches.",
+      "retrieval_hit": true,
+      "top_paper_correct": false,
+      "chunk_precision": 0.4,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P5",
+          "chunks": 3
+        },
+        {
+          "id": "P6",
+          "chunks": 2
+        }
+      ],
+      "evidence_present": false,
+      "missing_required": [
+        "12"
+      ],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "To my knowledge, Neely did not identify a specific number of servitization strategies. The context discusses Mathieu's (2001b) identification of two dimensions with three stages each for \"manufacturing service maneuvers\", which creates a 3x3 matrix representing nine possible locations. It also mentions Mathieu's (2001a) examination of the target of the service, distinguishing between services supporting the product and services supporting the customer. However, it does not specify how many strategies Neely identified in comparison to these.",
+      "trust_score": 0.486,
+      "temporal_status": "VALID",
+      "faithfulness": 0.7,
+      "passed": true,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 10,
+      "seconds": 48.6
+    },
+    {
+      "id": "D08",
+      "question": "What is the main explanation for mixed servitization-performance findings proposed by Brax et al.?",
+      "expected_papers": [
+        "P5"
+      ],
+      "expected_behavior": "Depends on servitization strategy/configuration and performance dimension; must not collapse to simply positive or negative.",
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P5",
+          "chunks": 15
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "The main explanation for the mixed servitization-performance findings proposed by Brax et al. is a configurational theory. This theory suggests that there is no general servitization-performance relationship but rather a number of separate cases or positions to be discussed. The results are connected with earlier theorizing on the dynamics of the servitization-performance relationship and observed paradoxes of servitization.\n\nAccording to Brax et al., some ways to servitize have a positive impact on some performance aspects; some have not. There is no general servitization-performance relationship but rather different configurations that lead to varying outcomes. The configurational approach shows that the relationship between the level of servitization and firm performance cannot be explained by means of service types and profitability alone.\n\nWhen multiple configurations are accounted for, the paradoxes result for only some of them. This theory validates and elaborates previous theorizing on financial and organizational service paradoxes (Brax, 2005; Gebauer et al., 2005). The costs labeled as \u201cpolitical\u201d and \u201cstrategic\u201d by Mathieu (2001b) are also considered in the context of current findings.\n\nIn summary, Brax et al. argue that there is no general servitization-performance relationship but rather a number of separate cases or positions to be discussed. These configurations lead to varying outcomes and cannot be explained solely by means of service types and profitability.",
+      "trust_score": 0.4855,
+      "temporal_status": "VALID",
+      "faithfulness": 0.76,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 49.2
+    }
+  ]
+}

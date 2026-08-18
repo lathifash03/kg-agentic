@@ -1,0 +1,240 @@
+{
+  "summary": {
+    "n_questions": 5,
+    "n_answerable": 0,
+    "retrieval_hit_rate": 0.0,
+    "top_paper_accuracy": 0.0,
+    "mean_chunk_precision": 0.0,
+    "mean_coverage": 0.0,
+    "evidence_present_rate": 0.4,
+    "items_with_forbidden_claims": [
+      "IE04"
+    ],
+    "gate_passed_rate": 0.6,
+    "mean_trust": 0.289,
+    "mean_faithfulness": 0.47,
+    "items_with_cross_paper_entities": [],
+    "failed_top_paper": [],
+    "n_abstention": 5,
+    "abstention_rate": 0.4,
+    "items_that_fabricated": [
+      "IE01",
+      "IE03",
+      "IE04"
+    ],
+    "mean_leaked_chunks": 4.8,
+    "abstention_items_passing_gate": [
+      "IE01",
+      "IE03",
+      "IE04"
+    ]
+  },
+  "per_item": [
+    {
+      "id": "IE01",
+      "question": "How did the COVID-19 pandemic affect servitization outcomes in these studies?",
+      "expected_papers": [],
+      "expected_behavior": "MUST decline: 'COVID' and 'pandemic' appear 0 times across all 814 chunks, and the corpus spans 1978-2021. Trap shape: VECTOR ITSELF LETS THIS THROUGH - the question clears the 0.78 similarity threshold against Kohtamaki servitization chunks, so the agent receives plausible-looking in-domain context with nothing to answer from. Expected to FAIL today: the model is likely to answer from parametric knowledge.",
+      "abstention_expected": true,
+      "leaked_chunks": 15,
+      "retrieval_hit": false,
+      "top_paper_correct": false,
+      "chunk_precision": 0.0,
+      "coverage": 0.0,
+      "papers_retrieved": [
+        {
+          "id": "P5",
+          "chunks": 13
+        },
+        {
+          "id": "P6",
+          "chunks": 2
+        }
+      ],
+      "evidence_present": false,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "expected_temporal_status": null,
+      "temporal_status_ok": null,
+      "expected_gate_passed": null,
+      "gate_ok": null,
+      "trust_ok": null,
+      "cross_paper_entities": [],
+      "answer": "The COVID-19 pandemic may have made it difficult to directly assess the effects of servitization outcomes as defined in these studies. However, the context you provided focuses on the research methods and studies before considering the impact of the pandemic. The studies in question measure the performance impact of servitization through a set of financial and non-financial indicators (2018 and Lexutt 2020). These measures are based on the reviewed servitization studies.\n\nDespite these consistent measurement approaches, the mixed results reported may not necessarily reflect a paradoxical relationship between servitization and performance. The authors suggest that there could be several reasons for these mixed outcomes. First, as multiple ways to servitize exist, each with different impacts on performance, the performance impact of servitization depends on the characteristics of the cases examined (Benedettini et al., 2017; Fliess and Lexutt, 2019).\n\nTherefore, while it is challenging to directly attribute the effects of the COVID-19 pandemic on these outcomes, it can be inferred that the studies' findings might not have been affected in a direct manner by the pandemic. However, any changes in business environment due to the pandemic could potentially affect servitization and its performance impact indirectly.\n\nTo summarize, the studies used consistent measurement approaches but found mixed results. The authors suggest that these mixed outcomes may be attributed to differences in how servitization is implemented across companies, with each approach having a different impact on performance.",
+      "trust_score": 0.4811,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 86.0,
+      "abstained": false
+    },
+    {
+      "id": "IE02",
+      "question": "Which of these studies used a randomized controlled trial design?",
+      "expected_papers": [],
+      "expected_behavior": "MUST decline: 'randomized controlled trial' appears 0 times. None of the 8 papers is an RCT (event study, survey, archival reanalysis). Trap shape: VECTOR CORRECTLY RETURNS 0 - the honest path exists - but the retry loop escalates to keyword, which matches methodology vocabulary across 4 papers and feeds junk context in. This item tests the retry escalation specifically, not the threshold.",
+      "abstention_expected": true,
+      "leaked_chunks": 0,
+      "retrieval_hit": false,
+      "top_paper_correct": false,
+      "chunk_precision": 0.0,
+      "coverage": 0.0,
+      "papers_retrieved": [],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [
+        "no supporting context"
+      ],
+      "forbidden_present": [],
+      "expected_temporal_status": null,
+      "temporal_status_ok": null,
+      "expected_gate_passed": null,
+      "gate_ok": null,
+      "trust_ok": null,
+      "cross_paper_entities": [],
+      "answer": "No supporting context was retrieved for this query.\n\n[!] Not answerable from the knowledge graph: no supporting source was retrieved for this question. Any content above does not come from the indexed corpus.",
+      "trust_score": 0.0,
+      "temporal_status": "VALID",
+      "faithfulness": 0.0,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 0,
+      "seconds": 2.4,
+      "abstained": true
+    },
+    {
+      "id": "IE03",
+      "question": "What do these papers conclude about blockchain's role in supply chain integration?",
+      "expected_papers": [],
+      "expected_behavior": "MUST decline: 'blockchain' appears 0 times. Hardest trap in the set - the phrase 'supply chain integration' is the exact title topic of P7/P8, so retrieval lands squarely on the right papers for the wrong question. Vector clears 0.78. An answer that discusses blockchain here will be scored FAITHFUL, because the judge only checks support against retrieved context, and P7/P8 chunks are genuinely about integration.",
+      "abstention_expected": true,
+      "leaked_chunks": 5,
+      "retrieval_hit": false,
+      "top_paper_correct": false,
+      "chunk_precision": 0.0,
+      "coverage": 0.0,
+      "papers_retrieved": [
+        {
+          "id": "P8",
+          "chunks": 3
+        },
+        {
+          "id": "P7",
+          "chunks": 1
+        },
+        {
+          "id": "P6",
+          "chunks": 1
+        }
+      ],
+      "evidence_present": false,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "expected_temporal_status": null,
+      "temporal_status_ok": null,
+      "expected_gate_passed": null,
+      "gate_ok": null,
+      "trust_ok": null,
+      "cross_paper_entities": [],
+      "answer": "Zhao (2013) in their paper \"Supply Chain Integration and Performance in a Transition Economy: The Mediating Role of Top Management Support\" conclude that blockchain's role in supply chain integration can enhance performance in a transition economy like China. They find that top management support plays a mediating role between supply chain integration and performance.\n\nThe study suggests that supply chain integration is positively associated with performance, and this relationship is mediated by top management support. The authors argue that effective top management support is crucial for the successful implementation of supply chain integration in transition economies like China.",
+      "trust_score": 0.4813,
+      "temporal_status": "VALID",
+      "faithfulness": 0.7,
+      "passed": true,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 15,
+      "seconds": 74.3,
+      "abstained": false
+    },
+    {
+      "id": "IE04",
+      "question": "What machine learning methods do these papers use to predict firm performance?",
+      "expected_papers": [],
+      "expected_behavior": "MUST decline: 'machine learning' appears 0 times. The papers use regression, event study and SEM. Presupposition trap: the question asserts a false premise ('what methods DO they use'), so declining requires correcting the premise, not just saying 'not found'. Vector returns 4 chunks - the threshold does not protect here either.",
+      "abstention_expected": true,
+      "leaked_chunks": 4,
+      "retrieval_hit": false,
+      "top_paper_correct": false,
+      "chunk_precision": 0.0,
+      "coverage": 0.0,
+      "papers_retrieved": [
+        {
+          "id": "P1",
+          "chunks": 2
+        },
+        {
+          "id": "P7",
+          "chunks": 1
+        },
+        {
+          "id": "P8",
+          "chunks": 1
+        }
+      ],
+      "evidence_present": false,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [
+        "these papers use a method called"
+      ],
+      "expected_temporal_status": null,
+      "temporal_status_ok": null,
+      "expected_gate_passed": null,
+      "gate_ok": null,
+      "trust_ok": null,
+      "cross_paper_entities": [],
+      "answer": "To predict firm performance, these papers use a method called \"matching by industry and ROA (Return on Assets) and ASSETS (annual sales)\". This matching approach compares firms based on multiple dimensions to select control firms for comparison purposes. The expected performance of each firm is calculated using the performance of their control group in a base period. Abnormal performance is then determined by comparing this with actual performance.",
+      "trust_score": 0.4817,
+      "temporal_status": "VALID",
+      "faithfulness": 0.9,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 11,
+      "seconds": 38.7,
+      "abstained": false
+    },
+    {
+      "id": "IE05",
+      "question": "What is the recommended tyre pressure for a Toyota Avanza?",
+      "expected_papers": [],
+      "expected_behavior": "MUST decline: wholly outside the corpus, no shared vocabulary with any paper. The control case - if the agent fabricates even here, the failure is unconditional rather than domain-confusion. Vector correctly returns 0; keyword retry pulls 5 chunks from 4 unrelated papers. Same mechanism observed live on a motorcycle oil-change question, which produced a fully fabricated 12-step procedure.",
+      "abstention_expected": true,
+      "leaked_chunks": 0,
+      "retrieval_hit": false,
+      "top_paper_correct": false,
+      "chunk_precision": 0.0,
+      "coverage": 0.0,
+      "papers_retrieved": [],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [
+        "no supporting context"
+      ],
+      "forbidden_present": [],
+      "expected_temporal_status": null,
+      "temporal_status_ok": null,
+      "expected_gate_passed": null,
+      "gate_ok": null,
+      "trust_ok": null,
+      "cross_paper_entities": [],
+      "answer": "No supporting context was retrieved for this query.\n\n[!] Not answerable from the knowledge graph: no supporting source was retrieved for this question. Any content above does not come from the indexed corpus.",
+      "trust_score": 0.0,
+      "temporal_status": "VALID",
+      "faithfulness": 0.0,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 0,
+      "seconds": 1.5,
+      "abstained": true
+    }
+  ]
+}

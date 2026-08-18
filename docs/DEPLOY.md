@@ -1,17 +1,45 @@
-# Deploy kg-agent API di server dev (citi-cygnus, 100.118.203.111)
+# Deploy kg-agent API
 
-Endpoint final untuk Rio (module 5): **`http://100.118.203.111:8003`**
-(port `8003` = "lab-brain-agent"; port 8000 sudah dipakai lab-brain-backend.)
+Target saat ini: **citi-condor** (`100.122.56.39`), endpoint **`http://100.122.56.39:8003`**.
+Port `8003` = "lab-brain-agent"; `8000` sering sudah dipakai lab-brain-backend.
 
-API dijalankan **native (uvicorn) co-located dengan Ollama** di server — bukan
-Docker — supaya sederhana dan menghindari bug seccomp Docker lama. Ollama diakses
-`localhost:11434`; Neo4j diakses lewat Tailscale.
+Runbook ini tidak terikat satu mesin - ganti IP dan `APP_DIR` sesuai target.
+Sebelumnya dokumen ini khusus citi-cygnus (`100.118.203.111`); langkahnya sama.
+
+**Jalur yang disarankan: Docker.** Image sudah membawa dependensi, healthcheck,
+dan `restart: unless-stopped`, serta berjalan sebagai non-root (`uid=10001`)
+walaupun repo di-clone sebagai root. Jalur native (uvicorn + venv) tetap
+didokumentasikan di bawah untuk server tanpa Docker - perhatikan bahwa venv
+TIDAK bisa dipindah antar direktori (path absolut di shebang dan `pyvenv.cfg`),
+jadi pindah lokasi berarti membuat ulang venv.
+
+## Dua hal yang paling sering menggagalkan deploy ini
+
+**1. Neo4j yang salah.** Sumber kebenaran adalah `bolt://100.118.203.111:7690`
+(user `sinyo`) - 8 paper. Endpoint lama `bolt://100.110.179.78:7687` adalah
+instance BERBEDA: korpus yang sama plus belasan transkrip meeting, terus
+bertambah. Memakainya membuat jawaban bersumber dari graph yang salah tanpa
+gejala apa pun. Verifikasi dengan menghitung **paper**, bukan total Document -
+korpus juga memuat transkrip meeting dan Document fixture tanpa chunk:
+`MATCH (d:Document) WHERE d.doc_type='paper' RETURN count(d)` -> harus **8**.
+
+**2. Ollama tidak terjangkau dari container.** Di Docker Linux, Ollama yang
+co-located hanya listen di `127.0.0.1` dan menolak koneksi dari container.
+Gejalanya senyap: `/health` hijau, semua jawaban kosong.
+
+| Ollama ada di | Berkas compose | `OLLAMA_URL` di `.env` |
+|---|---|---|
+| mesin yang sama (Linux) | `docker-compose.host.yml` | `http://localhost:11434` |
+| mesin lain (tailscale) | `docker-compose.prod.yml` | `http://<ip>:11434` |
+
+Selalu buktikan dengan `scripts/smoke_endpoint.py`, jangan berhenti di `/health`.
 
 ---
 
+
 ## Prasyarat (cek dulu — semua di luar kendali laptop)
 
-1. **Akses terminal ke citi-cygnus.** SSH dari laptop Lathifah DITOLAK ACL tailnet
+1. **Akses terminal ke server target.** SSH dari laptop Lathifah DITOLAK ACL tailnet
    (`tailnet policy does not permit you to SSH to this node`). Opsi: minta Arya
    buka ACL Tailscale SSH untuk user ini, ATAU Arya yang menjalankan runbook ini,
    ATAU akses via console server langsung.
@@ -19,9 +47,9 @@ Docker — supaya sederhana dan menghindari bug seccomp Docker lama. Ollama diak
    yang memblok SSH bisa juga membatasi port; pastikan `:8003` dibuka.)
 3. **Ollama server** punya model: `hermes3:3b` (answer-gen + juri) dan
    `qwen3-embedding:0.6b` (embedding retrieval).
-   - `qwen3-embedding:0.6b` **sudah ada** di citi-cygnus — server itu memang
-     menyimpan keluarga qwen3. Kebetulan menguntungkan: itu juga model yang
-     dipakai meng-embed chunk di KG, jadi tidak perlu pull apa-apa untuk embedding.
+   - `qwen3-embedding:0.6b` sudah ada di citi-cygnus (server itu menyimpan
+     keluarga qwen3), dan itu juga model yang meng-embed chunk di KG. **Di
+     condor belum diverifikasi** — cek dulu, jangan diasumsikan.
    - `hermes3:3b` **belum ada** dan harus di-pull (langkah 4). Jangan diganti
      `qwen3:4b`/`qwen3:8b`/`qwen3-vl:4b` — keluarga "thinking" itu menghabiskan
      token budget untuk bernalar dan mengembalikan jawaban kosong pada konteks
@@ -30,15 +58,15 @@ Docker — supaya sederhana dan menghindari bug seccomp Docker lama. Ollama diak
      menyuruh begitu dan itu keliru: chunk di KG di-embed dengan qwen3, jadi
      memakai mxbai membuat retrieval balik kosong **tanpa error apa pun**
      (dua-duanya 1024 dim, index tidak pernah protes).
-4. **Neo4j `100.110.179.78:7687` reachable DARI server** (bukan cuma dari laptop).
-   Uji dengan `nc -z 100.110.179.78 7687` di server (langkah 5).
+4. **Neo4j `100.118.203.111:7690` reachable DARI server** (bukan cuma dari laptop).
+   Uji dengan `nc -z 100.118.203.111 7690` di server (langkah 5).
 5. **Repo bisa di-clone di server.** `github.com/lathifash03/kg-agentic` — kalau
    private, siapkan Personal Access Token / deploy key, atau `git pull` kalau repo
    sudah ada di server.
 
 ---
 
-## Langkah (jalankan DI citi-cygnus)
+## Langkah native/uvicorn (jalankan DI server target)
 
 ```bash
 # 1. Ambil kode
@@ -52,14 +80,14 @@ python3 -m venv .venv
 
 # 3. .env — profil server (Ollama=localhost, Neo4j via tailscale, hermes3)
 cp .env.server.example .env
-#    (tinjau isinya; NEO4J_URI harus bolt://100.110.179.78:7687)
+#    (tinjau isinya; NEO4J_URI harus bolt://100.118.203.111:7690, user sinyo)
 
 # 4. Pastikan model ada di Ollama server
 ollama pull hermes3:3b          # answer-gen + juri; belum ada di server ini
 ollama list | grep qwen3-embedding   # embedding: harus SUDAH ada, jangan pull mxbai
 
 # 5. Sanity: server bisa lihat Neo4j?
-nc -z 100.110.179.78 7687 && echo "neo4j OK"
+nc -z 100.118.203.111 7690 && echo "neo4j OK"
 
 # 5b. Sanity embedding — ini yang kemarin gagal senyap. Model di .env HARUS
 #     sama dengan yang tersimpan di chunk. Query berikut harus mengembalikan
@@ -82,10 +110,10 @@ sleep 5 && curl -s http://localhost:8003/health
 ## Verifikasi dari luar (laptop / mesin Rio)
 
 ```bash
-curl http://100.118.203.111:8003/health
+curl http://100.122.56.39:8003/health
 # {"status":"ok","neo4j_connected":true}  → endpoint hidup & bisa diberikan ke Rio
 
-curl -X POST http://100.118.203.111:8003/query \
+curl -X POST http://100.122.56.39:8003/query \
   -H 'Content-Type: application/json' \
   -d '{"query":"What is supply chain integration?"}'
 ```
@@ -143,9 +171,13 @@ Yang perlu Rio tahu tentang bentuk jawabannya:
 - **`answer` sudah memuat disclaimer** di ujungnya (`\n\n[!] Unverified: ...`)
   saat gate tidak lolos. Kalau Rio mau merender disclaimer terpisah, pakai field
   `disclaimer` dan potong bagian itu dari `answer`.
-- **Korpus baru 4 dari 8 paper** (Hawthorne + servitization ada; ISO dan supply
-  chain integration hilang). Pertanyaan di luar dua topik itu akan balik tanpa
-  sumber. Sedang diperbaiki Nabhyla/Wildan.
+- **Korpus lengkap 8 paper** (ISO, Hawthorne, servitization, supply chain
+  integration). Satu cacat tersisa: P1 Corbett kehilangan chunk 50 dan 83
+  (`Document.n_chunks` menyebut 86, isinya 84) - menunggu re-ingest.
+- **Pertanyaan di luar korpus tidak dijawab "tidak tahu".** Diukur pada 5 item
+  insufficient-evidence: agent hanya menolak di 1 dari 5, dan 3 karangan LOLOS
+  gate. Jangan sajikan `answer` ke pengguna akhir tanpa menampilkan
+  `documents_used` - kalau kosong, jawabannya tidak bersumber dari korpus.
 - **Latensi terukur 0,5–7 detik**, bukan 40–180 detik seperti versi lama catatan
   ini. Angka lama berasal dari asumsi inferensi CPU yang **sudah tidak berlaku**
   di server ini: `/api/ps` menunjukkan `hermes3:3b` dilayani Ollama 100% di VRAM
@@ -171,9 +203,9 @@ ditegakkan di `call_tool` — satu titik sempit yang dilewati API maupun
 orchestrator. Verifikasi setelah deploy:
 
 ```bash
-curl -s http://100.118.203.111:8003/health          # "read_only": true
+curl -s http://100.122.56.39:8003/health          # "read_only": true
 curl -s -o /dev/null -w '%{http_code}\n' -X POST \
-  http://100.118.203.111:8003/tools/ingest_meeting \
+  http://100.122.56.39:8003/tools/ingest_meeting \
   -H 'Content-Type: application/json' -d '{"arguments":{"title":"tes"}}'
 # harus 403
 ```
@@ -202,28 +234,28 @@ Yang sudah diverifikasi end-to-end pada image ini (di macOS):
 | `smoke_endpoint.py` | `VERDICT: WORKING` |
 
 ```bash
-cp .env.docker.example .env     # tinjau: NEO4J_URI, KG_EMBED_MODEL, KG_READ_ONLY, OLLAMA_URL
+cp .env.docker.example .env     # WAJIB tinjau: NEO4J_URI (harus :7690/sinyo), OLLAMA_URL
 docker compose -f docker-compose.prod.yml up -d --build
 docker compose -f docker-compose.prod.yml exec agent \
     python scripts/smoke_endpoint.py --url http://localhost:8000
 ```
 
-### Satu hal yang WAJIB disesuaikan di Linux
+### Pilih berkas compose sesuai letak Ollama
 
-Ollama secara default hanya listen di `127.0.0.1`, sehingga **menolak koneksi
-dari container** — apa pun alamat yang dipakai. Konfigurasi bridge di compose
-lulus uji di macOS hanya karena Docker Desktop memperlakukan
-`host.docker.internal` secara khusus; **perilaku itu tidak ada di Docker Linux.**
+Sudah disiapkan dua berkas, jadi tidak perlu mengedit YAML di server:
 
-Di citi-cygnus pilih salah satu (keduanya dijelaskan di komentar
-`docker-compose.prod.yml`):
+| Ollama ada di | Perintah | `.env` |
+|---|---|---|
+| mesin yang sama (Linux) | `docker compose -f docker-compose.host.yml up -d --build` | ketiga URL Ollama = `http://localhost:11434` |
+| mesin lain (tailscale) | `docker compose -f docker-compose.prod.yml up -d --build` | ketiga URL Ollama = `http://<ip>:11434` |
 
-- **(A) `network_mode: host`** — paling sederhana. Ollama tidak perlu diubah,
-  `localhost:11434` kembali benar. Hapus `ports:`/`extra_hosts:`, tambahkan
-  `network_mode: host` + `command:` yang bind ke 8003.
-- **(B) `OLLAMA_HOST=0.0.0.0`** pada service Ollama, lalu `.env` memakai
-  `http://100.118.203.111:11434`. Pertahankan bridge, tapi Ollama ikut terekspos
-  ke tailnet.
+`docker-compose.host.yml` memakai `network_mode: host`, membind uvicorn langsung
+ke 8003, dan **menimpa HEALTHCHECK bawaan image** — yang bawaan menembak
+`localhost:8000`, sehingga tanpa penimpaan container akan selamanya `unhealthy`
+padahal sehat.
+
+Opsi ketiga (`OLLAMA_HOST=0.0.0.0` + bridge) memang bisa, tapi mengekspos Ollama
+ke seluruh tailnet — hindari kecuali memang diinginkan.
 
 Apa pun pilihannya, buktikan dengan `smoke_endpoint.py` — kalau Ollama tidak
 terjangkau, `/health` tetap hijau sementara setiap jawaban balik kosong.

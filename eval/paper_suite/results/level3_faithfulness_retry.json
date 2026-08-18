@@ -1,0 +1,267 @@
+{
+  "summary": {
+    "n_questions": 5,
+    "n_answerable": 5,
+    "retrieval_hit_rate": 1.0,
+    "top_paper_accuracy": 0.8,
+    "mean_chunk_precision": 0.731,
+    "mean_coverage": 1.0,
+    "evidence_present_rate": 0.6,
+    "items_with_forbidden_claims": [
+      "F02",
+      "F03"
+    ],
+    "gate_passed_rate": 0.8,
+    "mean_trust": 0.486,
+    "mean_faithfulness": 0.746,
+    "items_with_cross_paper_entities": [
+      "F03"
+    ],
+    "failed_top_paper": [
+      "F01"
+    ],
+    "_rescored_note": "forbidden_evidence terms were too word-order-specific and missed F02's finding inversion; shortened to distinctive fragments and the stored answers were re-scored. Answers themselves are unchanged."
+  },
+  "per_item": [
+    {
+      "id": "F01",
+      "question": "According to Franke and Kaul, what explained the productivity changes in the experiment they analysed?",
+      "expected_papers": [
+        "P3"
+      ],
+      "expected_behavior": "Franke & Kaul (1978) analysed the FIRST RELAY ASSEMBLY TEST ROOM and attributed output to managerial discipline, the economic depression and scheduled rest. Levitt & List (2009) are the ones who reanalysed the ILLUMINATION experiments and called the conventional account unsupported. Modelled on a real observed failure: on M02 the agent wrote 'Franke and Kaul (1983) found ... entirely fictional' - fabricating the year AND handing P4's conclusion to P3's authors. Forbidden terms target exactly that swap.",
+      "abstention_expected": false,
+      "leaked_chunks": 0,
+      "retrieval_hit": true,
+      "top_paper_correct": false,
+      "chunk_precision": 0.333,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P4",
+          "chunks": 8
+        },
+        {
+          "id": "P3",
+          "chunks": 4
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "expected_temporal_status": null,
+      "temporal_status_ok": null,
+      "expected_gate_passed": null,
+      "gate_ok": null,
+      "trust_ok": null,
+      "cross_paper_entities": [],
+      "answer": "According to Franke and Kul, the exercise of managerial discipline seemed to be the major factor in increased rates of output for the now altered group, including increased production by the three individuals remaining. This provided clear support to the suggestion that improvement resulted from the positive example of the two new workers as well as the aversive effects of management's disposal of two of the original workers. The increased importance of jobs and the real danger of losing them because of the depression may explain its positive contribution to output quantity for the group and for all individuals.",
+      "trust_score": 0.4855,
+      "temporal_status": "VALID",
+      "faithfulness": 0.78,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 47.4,
+      "abstained": false
+    },
+    {
+      "id": "F02",
+      "question": "What did Martinez-Costa et al. conclude about whether ISO 9001/2000 certified firms outperform other firms?",
+      "expected_papers": [
+        "P2"
+      ],
+      "expected_behavior": "Martinez-Costa (P2) reports a NULL result: certified firms do not noticeably outperform. The abnormal-financial-gain finding belongs to Corbett (P1), the other half of the ISO pair. Tests the same swap as F01 in the opposite direction: giving P2 the answer that belongs to P1. C01 already requires the agent not to claim the two papers agree; this item checks the attribution itself.",
+      "abstention_expected": false,
+      "leaked_chunks": 0,
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.6,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P2",
+          "chunks": 3
+        },
+        {
+          "id": "P1",
+          "chunks": 2
+        }
+      ],
+      "evidence_present": false,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [
+        "abnormal improvement",
+        "significant abnormal"
+      ],
+      "expected_temporal_status": null,
+      "temporal_status_ok": null,
+      "expected_gate_passed": null,
+      "gate_ok": null,
+      "trust_ok": null,
+      "cross_paper_entities": [],
+      "answer": "Martinez-Costa and his co-authors concluded that there were significant abnormal improvements in financial performance for ISO 9000 certified firms after they decided to seek their first certification. They found that the decision to get certified was followed by significant abnormal improvements in financial performance though the exact timing and magnitude of this effect depend on the specification of the control group.\n\nIn other words, ISO 9000 certification led to positive stock market reactions for US manufacturing firms that sought their first certification. The study used event study methods matching each certified firm to a control group of non-certified firms in the same industry with similar precertification size and/or return on assets.\n\n[!] Unverified: the answer may not be fully grounded in the sources. Treat this answer with caution.",
+      "trust_score": 0.485,
+      "temporal_status": "VALID",
+      "faithfulness": 0.67,
+      "passed": false,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 14,
+      "seconds": 78.8,
+      "abstained": false
+    },
+    {
+      "id": "F03",
+      "question": "Which paper reports an inverted-U relationship between supply chain integration and financial performance, and in what year was it published?",
+      "expected_papers": [
+        "P8"
+      ],
+      "expected_behavior": "Zhao, Feng & Wang (2015) report the inverted-U. Both facts are verified in the graph: 22 Zhao chunks contain 'inverted' and 15 contain '2015'. Directly targets citation fabrication, observed live on IE03 where the agent invented 'Zhao (2013)'. A wrong year is the cheapest possible hallucination to detect and the most damaging in a citation context, because it survives copy-paste into a bibliography.",
+      "abstention_expected": false,
+      "leaked_chunks": 0,
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.8,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P8",
+          "chunks": 12
+        },
+        {
+          "id": "P7",
+          "chunks": 3
+        }
+      ],
+      "evidence_present": false,
+      "missing_required": [
+        "2015"
+      ],
+      "matched_any_of": [],
+      "forbidden_present": [
+        "2014"
+      ],
+      "expected_temporal_status": null,
+      "temporal_status_ok": null,
+      "expected_gate_passed": null,
+      "gate_ok": null,
+      "trust_ok": null,
+      "cross_paper_entities": [
+        {
+          "name": "Supplier Integration",
+          "documents": [
+            "Zhao_2015_Supply_Chain_Integration_60c1df1f",
+            "Flynn_2010_Supply_Chain_Integration_3075d76a"
+          ]
+        }
+      ],
+      "answer": "The paper that reports an inverted-U relationship between supply chain integration and financial performance is \"Inverted U-shaped Relationship Between Supply Chain Integration and Financial Performance: The Moderating Role of Top Management Support\". Co-authors include Gang Zhao, Tainen Fen Gb, Dan Wang.\n\nThis paper was published in 2014.",
+      "trust_score": 0.4861,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 70.0,
+      "abstained": false
+    },
+    {
+      "id": "RG01",
+      "question": "What does each of Neely and Brax et al. say about why servitization can reduce profitability?",
+      "expected_papers": [
+        "P5",
+        "P6"
+      ],
+      "expected_behavior": "COVERAGE IS THE CRITERION - must reach 1.0 (both P5 and P6). This exact pair collapsed twice in L2: M03 and C03 both retried, landed on strategy=keyword, retrieved 5 chunks from P5 only, and scored coverage 0.5 - yet both PASSED the gate. Narrowing the context raises faithfulness, so the retry loop is rewarded for destroying multi-source recall. Expected to FAIL today on coverage while passing the gate.",
+      "abstention_expected": false,
+      "leaked_chunks": 0,
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P5",
+          "chunks": 12
+        },
+        {
+          "id": "P6",
+          "chunks": 3
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [
+        "paradox"
+      ],
+      "forbidden_present": [],
+      "expected_temporal_status": null,
+      "temporal_status_ok": null,
+      "expected_gate_passed": null,
+      "gate_ok": null,
+      "trust_ok": null,
+      "cross_paper_entities": [],
+      "answer": "Neely and Brax et al. both discuss reasons why servitization can reduce profitability. Brax et al. (2005) argue that the negative relationship between servitization and profitability is explained by difficulties in changing organizational direction and focus. They suggest that there is a stage in which the servitization-performance relationship becomes negative, with the highest risks for the firm.\n\nNeely (2015) provides some reasons why servitized firms tend to generate lower net profits as a percentage of revenues than pure manufacturing firms. Servitized firms have higher average labour costs, working capital and net assets. This results in a financial and organizational service paradox where servitization can lead to both increased revenue generation and reduced profitability.\n\nBrax et al.'s (2005) theorizing on the dynamics of the servitization-performance relationship is validated by the current analysis. They label these costs as \"political\" and \"strategic\", which seems appropriate against current findings. The study also shows that a high level of servitization can be more profitable than a low one, but this comes at the price of making alignment issues highlighted above more challenging.\n\nBenedettini et al. (2017) note that the performance impact of servitization depends on the characteristics of the cases examined. Each way to servitize has different impacts on performance, so there is no general servitization-performance relationship.",
+      "trust_score": 0.4857,
+      "temporal_status": "VALID",
+      "faithfulness": 0.78,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 80.1,
+      "abstained": false
+    },
+    {
+      "id": "RG02",
+      "question": "According to Neely, how do the profit margins of servitized manufacturers compare with those of pure manufacturers?",
+      "expected_papers": [
+        "P6"
+      ],
+      "expected_behavior": "TOP_PAPER IS THE CRITERION - must be P6, not its twin P5. D07 asked a different Neely question, retried to strategy=keyword, and came back with P5:3 vs P6:2 - the wrong half of the servitization pair as top paper, while still passing the gate. This item checks whether the retry can be trusted not to drift across a same-topic pair.",
+      "abstention_expected": false,
+      "leaked_chunks": 0,
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.923,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P6",
+          "chunks": 12
+        },
+        {
+          "id": "P5",
+          "chunks": 1
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [
+        "lower"
+      ],
+      "forbidden_present": [],
+      "expected_temporal_status": null,
+      "temporal_status_ok": null,
+      "expected_gate_passed": null,
+      "gate_ok": null,
+      "trust_ok": null,
+      "cross_paper_entities": [],
+      "answer": "According to the provided context, Neely finds that the profit margins of servitized manufacturers compare less favorably with those of pure manufacturers. The average net profit as a % of total sales revenues for pure manufacturing firms is 6.43%, while for servitized firms it is 5.17%. This indicates that servitized firms generate lower net profits as a percentage of their total sales revenues compared to pure manufacturing firms.\n\nThe reasons behind this are explained in the context, which includes higher average labour costs, working capital and net assets for servitized firms. These factors contribute to the increased cost base of servitized firms, resulting in lower profit margins despite them generating higher revenues.",
+      "trust_score": 0.4864,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 71.4,
+      "abstained": false
+    }
+  ]
+}

@@ -1,0 +1,282 @@
+{
+  "summary": {
+    "n_questions": 5,
+    "temporal_status_mismatches": [
+      {
+        "id": "T01",
+        "want": "OUTDATED",
+        "got": "VALID"
+      },
+      {
+        "id": "T02",
+        "want": "SUPERSEDED",
+        "got": "VALID"
+      }
+    ],
+    "gate_mismatches": [
+      {
+        "id": "T01",
+        "want": false,
+        "got": true
+      },
+      {
+        "id": "T02",
+        "want": false,
+        "got": true
+      }
+    ],
+    "trust_mismatches": [],
+    "mean_trust": 0.423,
+    "gate_passed_rate": 0.4
+  },
+  "per_item": [
+    {
+      "id": "T01",
+      "question": "What did Franke and Kaul find about the variables explaining output in the Hawthorne experiments?",
+      "expected_papers": [
+        "P3"
+      ],
+      "expected_behavior": "The aggregate status must become OUTDATED (worst-case across sources) and the gate must FAIL, because OUTDATED is in KG_FAILING_STATUSES. Also a regression test for the string timestamp bug: before conversion, created_at was STRING, to_datetime() returned None, and this node would have been reported VALID no matter how old it was.",
+      "abstention_expected": false,
+      "leaked_chunks": 0,
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.6,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P3",
+          "chunks": 3
+        },
+        {
+          "id": "P4",
+          "chunks": 2
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "expected_temporal_status": "OUTDATED",
+      "temporal_status_ok": false,
+      "expected_gate_passed": false,
+      "gate_ok": false,
+      "trust_ok": null,
+      "cross_paper_entities": [],
+      "answer": "Franke and Kaul found that there was little support for the Hawthorne effect when the illumination data were properly interpreted in the Hawthorne experiments. However, they also discovered that a naive misreading of the data might lead someone to falsely conclude that a Hawthorne effect is present.\n\nThe variables explaining output in their analysis included managerial discipline, economic depression, fewer net hours per week, more scheduled rest time, and use of small group incentives. These independent variables accounted for 25% or more of the period-by-period differences in rate of hourly output over 23 periods.\n\nAdditionally, there was a significant 12.6% improvement in rate of production when the incentive effect was tested in the second relay experiment. However, this difference was only significant between periods 1 and 2 (t = 2.54, p < .05).",
+      "trust_score": 0.485,
+      "temporal_status": "VALID",
+      "faithfulness": 0.8,
+      "passed": true,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 15,
+      "seconds": 92.9,
+      "restore": {
+        "deleted_nodes": 0,
+        "deleted_rels": 0,
+        "reset_nodes": 1
+      }
+    },
+    {
+      "id": "T02",
+      "question": "What are the three dimensions of supply chain integration studied by Flynn et al.?",
+      "expected_papers": [
+        "P7"
+      ],
+      "expected_behavior": "Status must become SUPERSEDED and the gate must FAIL. KG_SUPERSEDES_REL is SUPERSEDED_BY, so the edge direction matters: a is the superseded node.",
+      "abstention_expected": false,
+      "leaked_chunks": 0,
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 1.0,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P7",
+          "chunks": 5
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "expected_temporal_status": "SUPERSEDED",
+      "temporal_status_ok": false,
+      "expected_gate_passed": false,
+      "gate_ok": false,
+      "trust_ok": null,
+      "cross_paper_entities": [],
+      "answer": "Flyn et al. study three dimensions of supply chain integration:\n\n1. Internal Integration: This dimension helps manufacturers reduce mistakes and waste through information sharing and joint planning, which is directly related to business performance.\n2. Customer Integration: This dimension helps the manufacturer better understand customer requirements and forecast customer demand, leading to better financial performance by the manufacturer.\n3. Supplier Integration: Similar to customer integration, supplier integration extends internal integration's elimination of functional silos across organizational boundaries.\n\nThese three dimensions are expected to interact with each other to affect overall business performance.",
+      "trust_score": 0.4836,
+      "temporal_status": "VALID",
+      "faithfulness": 0.85,
+      "passed": true,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 15,
+      "seconds": 107.6,
+      "restore": {
+        "deleted_nodes": 0,
+        "deleted_rels": 1,
+        "reset_nodes": 1
+      }
+    },
+    {
+      "id": "T03",
+      "question": "What is the relationship between supply chain integration and performance according to Flynn et al.?",
+      "expected_papers": [
+        "P7"
+      ],
+      "expected_behavior": "Status must become CONFLICTED and the gate must FAIL. Two nodes share a name but assert opposite relationships, which is a genuine contradiction rather than a duplicate.",
+      "abstention_expected": false,
+      "leaked_chunks": 0,
+      "retrieval_hit": true,
+      "top_paper_correct": false,
+      "chunk_precision": 0.333,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P8",
+          "chunks": 10
+        },
+        {
+          "id": "P7",
+          "chunks": 5
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [
+        "performance"
+      ],
+      "forbidden_present": [],
+      "expected_temporal_status": "CONFLICTED",
+      "temporal_status_ok": true,
+      "expected_gate_passed": false,
+      "gate_ok": true,
+      "trust_ok": null,
+      "cross_paper_entities": [
+        {
+          "name": "Supplier Integration",
+          "documents": [
+            "Flynn_2010_Supply_Chain_Integration_3075d76a",
+            "Zhao_2015_Supply_Chain_Integration_60c1df1f"
+          ]
+        }
+      ],
+      "answer": "The relationship between supply chain integration (SCI) and performance according to Flynn et al. is described by a contingency and configuration approach in their paper titled \"The impact of supply chain integration on performance: A contingency and configuration approach\". They propose that the relationship between SCI and firm performance is contingent upon the level of internal organizational capabilities.\n\nIn simpler terms, the extent to which supply chain integration positively impacts company performance depends on how well a company has developed its internal capabilities. If a company has strong internal capabilities, it can leverage supply chain integration for better performance. Conversely, if a company lacks internal capabilities, supply chain integration may not have much impact on firm performance.\n\n[!] Unverified: some sources are conflicted. Treat this answer with caution.",
+      "trust_score": 0.4859,
+      "temporal_status": "CONFLICTED",
+      "faithfulness": 0.75,
+      "passed": false,
+      "retries": 1,
+      "strategy": "vector",
+      "n_sources": 16,
+      "seconds": 97.0,
+      "restore": {
+        "deleted_nodes": 1,
+        "deleted_rels": 0,
+        "reset_nodes": 0
+      }
+    },
+    {
+      "id": "T04",
+      "question": "What did Franke and Kaul find about the variables explaining output in the Hawthorne experiments?",
+      "expected_papers": [
+        "P3"
+      ],
+      "expected_behavior": "Same question as T01 but only one source is stale. Verifies the aggregate is worst-case rather than majority-vote: if the report comes back VALID because most sources are fresh, the temporal layer is diluted by exactly the nodes it should be protecting against.",
+      "abstention_expected": false,
+      "leaked_chunks": 0,
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.533,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P3",
+          "chunks": 8
+        },
+        {
+          "id": "P4",
+          "chunks": 7
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "expected_temporal_status": "OUTDATED",
+      "temporal_status_ok": true,
+      "expected_gate_passed": false,
+      "gate_ok": true,
+      "trust_ok": null,
+      "cross_paper_entities": [],
+      "answer": "Franke and Kaul found that most of the variance in production rates during the first relay experiment of the Hawthorne experiments could be explained by measured variables. However, managerial discipline was identified as the major factor in increased rates of output for the group.\n\nOutput gains were attributed to \"this intervention [managerial discipline] being a key part of the first relay experiment\" and not due to release from oppressive supervision or reduction of fatigue.\n\n[!] Unverified: some sources are outdated. Treat this answer with caution.",
+      "trust_score": 0.466,
+      "temporal_status": "OUTDATED",
+      "faithfulness": 0.76,
+      "passed": false,
+      "retries": 1,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 72.0,
+      "restore": {
+        "deleted_nodes": 0,
+        "deleted_rels": 0,
+        "reset_nodes": 1
+      }
+    },
+    {
+      "id": "TR01",
+      "question": "What did Franke and Kaul find about the variables explaining output in the Hawthorne experiments?",
+      "expected_papers": [
+        "P3"
+      ],
+      "expected_behavior": "trust = 0.05 x 1.0 x ~0.97 = ~0.05, far below the 0.4 gate, while temporal stays VALID. The gate must FAIL on trust alone. Also exercises a path the verifier treats specially: a trust-only failure is NOT retryable (re-retrieving the same low-trust graph cannot help), so `retries` must be 0 - unlike a faithfulness failure, which does retry.",
+      "abstention_expected": false,
+      "leaked_chunks": 0,
+      "retrieval_hit": true,
+      "top_paper_correct": true,
+      "chunk_precision": 0.533,
+      "coverage": 1.0,
+      "papers_retrieved": [
+        {
+          "id": "P3",
+          "chunks": 8
+        },
+        {
+          "id": "P4",
+          "chunks": 7
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [
+        "managerial discipline"
+      ],
+      "forbidden_present": [],
+      "expected_temporal_status": "VALID",
+      "temporal_status_ok": true,
+      "expected_gate_passed": false,
+      "gate_ok": true,
+      "trust_ok": true,
+      "cross_paper_entities": [],
+      "answer": "Franke and Kaul found that most of the variance in production rates during the first relay experiment of the Hawthorne experiments could be explained by measured variables. However, managerial discipline was identified as the major factor in increased rates of output for the group.\n\nOutput gains were attributed to \"this intervention [managerial discipline] being a key part of the first relay experiment\" and not due to release from oppressive supervision or reduction of fatigue.\n\n[!] Unverified: the supporting nodes have low trust scores. Treat this answer with caution.",
+      "trust_score": 0.1942,
+      "temporal_status": "VALID",
+      "faithfulness": 0.76,
+      "passed": false,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 15,
+      "seconds": 19.5,
+      "restore": {
+        "deleted_nodes": 0,
+        "deleted_rels": 0,
+        "reset_nodes": 139
+      }
+    }
+  ]
+}

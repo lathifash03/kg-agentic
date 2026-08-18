@@ -7,37 +7,36 @@
 #   docker compose -f docker-compose.prod.yml exec agent \
 #       python scripts/smoke_endpoint.py --url http://localhost:8000
 #
+# Ollama co-located di Linux? Pakai docker-compose.host.yml, bukan berkas ini.
+#
 # ---------------------------------------------------------------------------
-# MENJANGKAU OLLAMA DARI DALAM CONTAINER - BACA SEBELUM DEPLOY
+# BERKAS INI = BRIDGE. PAKAI HANYA KALAU OLLAMA ADA DI MESIN LAIN.
 # ---------------------------------------------------------------------------
 # Di dalam container, `localhost` menunjuk container itu sendiri, BUKAN host.
-# Jadi OLLAMA_URL=http://localhost:11434 yang benar untuk uvicorn native akan
-# gagal total begitu dipindah ke Docker.
+# Di Docker LINUX, Ollama yang co-located TIDAK bisa dijangkau dari sini: secara
+# default ia hanya listen di 127.0.0.1 dan menolak koneksi dari container apa
+# pun alamat yang dipakai. Bridge di bawah lulus uji di macOS hanya karena
+# Docker Desktop memperlakukan host.docker.internal secara khusus.
 #
-# Dan mengganti hostname saja belum cukup: secara default Ollama hanya listen
-# di 127.0.0.1, sehingga ia menolak koneksi dari container APA PUN alamat yang
-# dipakai - baik host.docker.internal maupun IP tailscale host. Pilih satu:
+#   Ollama di MESIN LAIN (IP tailscale)  -> berkas INI, jalan apa adanya.
+#       .env: OLLAMA_URL=http://<ip-tailscale>:11434 (juga KG_EMBED_URL,
+#       KG_JUDGE_OLLAMA_URL). IP tailnet dirutekan host seperti IP biasa.
 #
-#   (A) network_mode: host  - PALING SEDERHANA untuk server Linux yang Ollama-nya
-#       co-located. Container memakai network host apa adanya, `localhost:11434`
-#       kembali benar, dan tidak ada yang perlu diubah di Ollama. Caranya: hapus
-#       blok `ports:` dan `extra_hosts:` di bawah, lalu tambahkan
-#           network_mode: host
-#           command: ["uvicorn","kg_agent.api:app","--host","0.0.0.0","--port","8003"]
+#   Ollama di mesin YANG SAMA (Linux)    -> pakai docker-compose.host.yml:
+#       docker compose -f docker-compose.host.yml up -d --build
+#       .env: ketiga URL Ollama = http://localhost:11434
 #
-#   (B) Buka bind Ollama - set OLLAMA_HOST=0.0.0.0 pada service Ollama, lalu di
-#       .env pakai IP tailscale host (http://100.118.203.111:11434). Pertahankan
-#       konfigurasi bridge di bawah. Konsekuensinya Ollama ikut terekspos ke
-#       tailnet, jadi pastikan itu memang diinginkan.
+# Salah pilih GAGAL SENYAP: /health tetap hijau (ia hanya menguji Neo4j)
+# sementara setiap jawaban balik kosong. Selalu buktikan dengan
+# scripts/smoke_endpoint.py, jangan berhenti di /health.
 #
-# Neo4j lewat IP tailscale (100.x) tidak terpengaruh - itu IP biasa yang
-# dirutekan host, bukan localhost.
+# Neo4j lewat IP tailscale (100.x) tidak terpengaruh pilihan ini.
+# ---------------------------------------------------------------------------
 #
-# CATATAN UJI: konfigurasi bridge di bawah sudah diuji dan LULUS di macOS
-# (Docker Desktop memperlakukan host.docker.internal secara khusus sehingga
-# tembus ke service yang listen di 127.0.0.1 host). Perilaku itu TIDAK berlaku
-# di Docker Linux. Di citi-cygnus, pilih (A) atau (B) dan verifikasi dengan
-# scripts/smoke_endpoint.py - jangan berasumsi ini jalan begitu saja.
+# CATATAN UJI: bridge di bawah diuji LULUS di macOS (Docker Desktop), termasuk
+# build, /health, HEALTHCHECK, retrieval nyata, dan guard tulis 403. Di Linux
+# yang diuji hanya jalur Ollama-remote; jalur Ollama co-located memang tidak
+# didukung berkas ini - pakai docker-compose.host.yml.
 # ---------------------------------------------------------------------------
 #
 # Butuh Docker yang seccomp-nya mengizinkan clone3 kalau memakai base image

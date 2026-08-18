@@ -402,6 +402,92 @@ def test_trace_is_always_returned(monkeypatch):
     }
 
 
+def test_orchestrator_fails_closed_when_no_tool_was_called(monkeypatch):
+    """An ungated completion must never be reported as a successful run.
+
+    A model too weak for native tool-calling (hermes3:3b echoes the tool schema
+    back as prose) produces exactly this shape: content, no tool_calls. Nothing
+    was retrieved and no gate ran, so `ok` has to be False.
+    """
+    scripted = [{"content": "The Hawthorne effect is well known.", "tool_calls": []}]
+    agent, calls, _ = _orchestrator(monkeypatch, scripted)
+    result = agent.run("What is the Hawthorne effect?")
+
+    assert calls == []
+    assert result.ok is False
+    assert result.stopped_reason.startswith("no_tool_called")
+    assert result.verified_answer is None
+
+
+class _StubRequest:
+    """Minimal stand-in for starlette's Request (only `_caller` reads it)."""
+
+    headers: dict = {}
+    client = None
+
+
+def _api_with_orchestrator(monkeypatch, mode):
+    """Point the app at a config whose orchestrator runs in ``mode``."""
+    from kg_agent import api
+    from kg_agent.config import get_config
+
+    cfg = get_config()
+    cfg.orchestrator.mode = mode
+    monkeypatch.setattr(api.app.state, "cfg", cfg, raising=False)
+    # Normally set by the lifespan; no Neo4j is reached in these tests.
+    monkeypatch.setattr(api.app.state, "client", None, raising=False)
+    return api
+
+
+def test_agentic_flag_cannot_enable_a_disabled_orchestrator(monkeypatch):
+    """KG_ORCHESTRATOR=off is an operator decision, not a default a caller can
+    override: the orchestrator can reach every registry tool, so a request body
+    must not switch it back on.
+    """
+    import pytest
+    from fastapi import HTTPException
+
+    api = _api_with_orchestrator(monkeypatch, "off")
+
+    with pytest.raises(HTTPException) as exc:
+        api.query(api.QueryRequest(query="apa isi graph?", agentic=True), _StubRequest())
+
+    assert exc.value.status_code == 403
+    assert "KG_ORCHESTRATOR=off" in exc.value.detail
+
+
+def test_query_refuses_to_return_an_unverified_orchestrator_answer(monkeypatch):
+    """/query has exactly one successful shape. A run that produced no verified
+    answer must surface as an error status, not as 200 with `answer` missing.
+    """
+    import pytest
+    from fastapi import HTTPException
+
+    from kg_agent.orchestrator import OrchestrationResult
+
+    api = _api_with_orchestrator(monkeypatch, "native")
+    monkeypatch.setattr(
+        api,
+        "run_orchestrated",
+        lambda client, cfg, query: OrchestrationResult(
+            query=query,
+            response="an ungated completion",
+            ok=False,
+            stopped_reason="no_tool_called: ...",
+            model="fake-model",
+        ),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        api.query(api.QueryRequest(query="q", agentic=True), _StubRequest())
+
+    assert exc.value.status_code == 502
+    assert exc.value.detail["error"] == "no_verified_answer"
+    # The raw text stays available for debugging - it just is not served as an answer.
+    assert exc.value.detail["response"] == "an ungated completion"
+    assert "answer" not in exc.value.detail
+
+
 def test_judge_disabled_by_default_reuses_main_llm():
     """With no KG_JUDGE_* set, no separate judge is built (backward compatible)."""
     from kg_agent.agentic_verifier import get_judge_client

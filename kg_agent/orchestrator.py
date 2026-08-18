@@ -523,11 +523,22 @@ class NativeToolOrchestrator:
         else:
             result.response = last_content
 
+        # Zero executed tools means the model answered from its own weights: no
+        # retrieval, and none of the trust/temporal/faithfulness gates ran. That
+        # is a failed run, not a "final answer" - a small model that cannot emit
+        # tool_calls (observed with hermes3:3b, which echoes the tool schema back
+        # as prose) would otherwise be reported as a success. Fails closed so the
+        # caller can never mistake an ungated completion for a verified one.
         if not result.tools_used and result.ok:
             logger.warning(
                 "Orchestrator answered %r without calling any tool - the response "
                 "carries no verification.",
                 query,
+            )
+            result.ok = False
+            result.stopped_reason = (
+                "no_tool_called: the model answered from its own knowledge, so the "
+                "response carries no trust/temporal/faithfulness verification"
             )
         return result
 

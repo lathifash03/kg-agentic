@@ -1,0 +1,49 @@
+# Varian HOST-NETWORK: dipakai kalau Ollama jalan di mesin yang SAMA dengan
+# container ini (Linux). Pakai berkas ini, bukan docker-compose.prod.yml:
+#
+#   docker compose -f docker-compose.host.yml up -d --build
+#
+# ---------------------------------------------------------------------------
+# KENAPA ADA DUA BERKAS
+# ---------------------------------------------------------------------------
+# Di Docker Linux, Ollama secara default hanya listen di 127.0.0.1 dan MENOLAK
+# koneksi dari container - berapa pun alamat yang dipakai, termasuk
+# host.docker.internal maupun IP tailscale host. Bridge networking di
+# docker-compose.prod.yml lulus uji di macOS hanya karena Docker Desktop
+# memperlakukan host.docker.internal secara khusus; perilaku itu tidak ada di
+# Linux. `network_mode: host` membuat `localhost:11434` kembali benar tanpa
+# mengubah konfigurasi Ollama dan tanpa mengekspos Ollama ke tailnet.
+#
+# Pakai docker-compose.prod.yml (bridge) kalau Ollama ada di MESIN LAIN dan
+# dijangkau lewat IP tailscale - itu IP biasa yang dirutekan host, jadi bridge
+# jalan apa adanya.
+#
+# Di .env, ketiga URL Ollama harus http://localhost:11434 untuk berkas ini:
+#   OLLAMA_URL, KG_EMBED_URL, KG_JUDGE_OLLAMA_URL
+# ---------------------------------------------------------------------------
+services:
+  agent:
+    build: .
+    image: kg-agent-api
+    env_file:
+      - .env
+    # Tidak ada `ports:` - itu ILEGAL bersama network_mode: host dan compose
+    # akan menolak start. Container memakai network host apa adanya, jadi port
+    # ditentukan oleh `command` di bawah.
+    network_mode: host
+    # Image default-nya bind ke 8000; di sini di-override ke 8003 karena 8000
+    # sering sudah dipakai service lain di server, dan dengan host network tidak
+    # ada pemetaan port yang bisa menggeser.
+    command: ["uvicorn", "kg_agent.api:app", "--host", "0.0.0.0", "--port", "8003"]
+    # HEALTHCHECK bawaan image menembak localhost:8000. Karena `command` di atas
+    # memindah port ke 8003, healthcheck itu WAJIB ikut diganti - kalau tidak,
+    # container selamanya berstatus `unhealthy` padahal sehat, dan `docker ps`
+    # jadi sinyal yang menyesatkan.
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request;urllib.request.urlopen('http://localhost:8003/health',timeout=5)"]
+      interval: 30s
+      timeout: 8s
+      start_period: 20s
+      retries: 3
+    restart: unless-stopped

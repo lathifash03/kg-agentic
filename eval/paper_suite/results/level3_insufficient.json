@@ -1,0 +1,252 @@
+{
+  "summary": {
+    "n_questions": 5,
+    "n_answerable": 0,
+    "retrieval_hit_rate": 0.0,
+    "top_paper_accuracy": 0.0,
+    "mean_chunk_precision": 0.0,
+    "mean_coverage": 0.0,
+    "evidence_present_rate": 0.2,
+    "items_with_forbidden_claims": [
+      "IE03",
+      "IE04",
+      "IE05"
+    ],
+    "gate_passed_rate": 0.6,
+    "mean_trust": 0.486,
+    "mean_faithfulness": 0.43,
+    "items_with_cross_paper_entities": [],
+    "failed_top_paper": [],
+    "n_abstention": 5,
+    "abstention_rate": 0.2,
+    "items_that_fabricated": [
+      "IE01",
+      "IE03",
+      "IE04",
+      "IE05"
+    ],
+    "mean_leaked_chunks": 4.8,
+    "abstention_items_passing_gate": [
+      "IE01",
+      "IE03",
+      "IE04"
+    ],
+    "_rescored_note": "Lexical criteria were corrected after the run (refusal markers missed 'does not contain information'; one forbidden term matched a restatement of the question). Answers are unchanged from the original run - only the scoring of those stored answers was recomputed."
+  },
+  "per_item": [
+    {
+      "id": "IE01",
+      "question": "How did the COVID-19 pandemic affect servitization outcomes in these studies?",
+      "expected_papers": [],
+      "expected_behavior": "MUST decline: 'COVID' and 'pandemic' appear 0 times across all 814 chunks, and the corpus spans 1978-2021. Trap shape: VECTOR ITSELF LETS THIS THROUGH - the question clears the 0.78 similarity threshold against Kohtamaki servitization chunks, so the agent receives plausible-looking in-domain context with nothing to answer from. Expected to FAIL today: the model is likely to answer from parametric knowledge.",
+      "abstention_expected": true,
+      "leaked_chunks": 5,
+      "retrieval_hit": false,
+      "top_paper_correct": false,
+      "chunk_precision": 0.0,
+      "coverage": 0.0,
+      "papers_retrieved": [
+        {
+          "id": "P5",
+          "chunks": 5
+        }
+      ],
+      "evidence_present": false,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "The COVID-19 pandemic does not directly appear to affect how the COVID-",
+      "trust_score": 0.4854,
+      "temporal_status": "VALID",
+      "faithfulness": 0.7,
+      "passed": true,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 13,
+      "seconds": 81.9,
+      "abstained": false
+    },
+    {
+      "id": "IE02",
+      "question": "Which of these studies used a randomized controlled trial design?",
+      "expected_papers": [],
+      "expected_behavior": "MUST decline: 'randomized controlled trial' appears 0 times. None of the 8 papers is an RCT (event study, survey, archival reanalysis). Trap shape: VECTOR CORRECTLY RETURNS 0 - the honest path exists - but the retry loop escalates to keyword, which matches methodology vocabulary across 4 papers and feeds junk context in. This item tests the retry escalation specifically, not the threshold.",
+      "abstention_expected": true,
+      "leaked_chunks": 5,
+      "retrieval_hit": false,
+      "top_paper_correct": false,
+      "chunk_precision": 0.0,
+      "coverage": 0.0,
+      "papers_retrieved": [
+        {
+          "id": "P5",
+          "chunks": 2
+        },
+        {
+          "id": "P6",
+          "chunks": 1
+        },
+        {
+          "id": "P3",
+          "chunks": 1
+        },
+        {
+          "id": "P1",
+          "chunks": 1
+        }
+      ],
+      "evidence_present": true,
+      "missing_required": [],
+      "matched_any_of": [
+        "not contain"
+      ],
+      "forbidden_present": [],
+      "cross_paper_entities": [],
+      "answer": "The provided context does not contain information about which study used a randomized controlled trial design. It provides details about service and financial performance measures, but no specific research or studies are mentioned.\n\n[!] Unverified: the answer may not be fully grounded in the sources. Treat this answer with caution.",
+      "trust_score": 0.4858,
+      "temporal_status": "VALID",
+      "faithfulness": 0.0,
+      "passed": false,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 15,
+      "seconds": 30.5,
+      "abstained": true
+    },
+    {
+      "id": "IE03",
+      "question": "What do these papers conclude about blockchain's role in supply chain integration?",
+      "expected_papers": [],
+      "expected_behavior": "MUST decline: 'blockchain' appears 0 times. Hardest trap in the set - the phrase 'supply chain integration' is the exact title topic of P7/P8, so retrieval lands squarely on the right papers for the wrong question. Vector clears 0.78. An answer that discusses blockchain here will be scored FAITHFUL, because the judge only checks support against retrieved context, and P7/P8 chunks are genuinely about integration.",
+      "abstention_expected": true,
+      "leaked_chunks": 5,
+      "retrieval_hit": false,
+      "top_paper_correct": false,
+      "chunk_precision": 0.0,
+      "coverage": 0.0,
+      "papers_retrieved": [
+        {
+          "id": "P8",
+          "chunks": 3
+        },
+        {
+          "id": "P7",
+          "chunks": 1
+        },
+        {
+          "id": "P6",
+          "chunks": 1
+        }
+      ],
+      "evidence_present": false,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [
+        "blockchain can",
+        "blockchain technology leads"
+      ],
+      "cross_paper_entities": [],
+      "answer": "Zhao (2013) in their paper about \"Supply Chain Integration, Top Management Support, and Performance in a Manufacturing Firm in China\" conclude that blockchain can play a significant role in enhancing supply chain integration. They find that the use of blockchain technology leads to better coordination between suppliers and manufacturers, which in turn improves overall performance.\n\nHowever, it's important to note that this conclusion is based on their specific study in China, using manufacturing firms as case studies. The impact of blockchain on supply chain integration may vary depending on factors such as industry, company size, and the nature of the supply chain involved.",
+      "trust_score": 0.4856,
+      "temporal_status": "VALID",
+      "faithfulness": 0.7,
+      "passed": true,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 15,
+      "seconds": 102.1,
+      "abstained": false
+    },
+    {
+      "id": "IE04",
+      "question": "What machine learning methods do these papers use to predict firm performance?",
+      "expected_papers": [],
+      "expected_behavior": "MUST decline: 'machine learning' appears 0 times. The papers use regression, event study and SEM. Presupposition trap: the question asserts a false premise ('what methods DO they use'), so declining requires correcting the premise, not just saying 'not found'. Vector returns 4 chunks - the threshold does not protect here either.",
+      "abstention_expected": true,
+      "leaked_chunks": 4,
+      "retrieval_hit": false,
+      "top_paper_correct": false,
+      "chunk_precision": 0.0,
+      "coverage": 0.0,
+      "papers_retrieved": [
+        {
+          "id": "P1",
+          "chunks": 2
+        },
+        {
+          "id": "P7",
+          "chunks": 1
+        },
+        {
+          "id": "P8",
+          "chunks": 1
+        }
+      ],
+      "evidence_present": false,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [
+        "these papers use a method called"
+      ],
+      "cross_paper_entities": [],
+      "answer": "To predict firm performance, these papers use a method called \"matching by industry and ROA (Return on Assets) and ASSETS (annual sales)\". This matching approach compares the control firms based on multiple dimensions to the firms receiving ISO 9000 certification. The expected performance of each firm is calculated using their control group's performance in a base period, and abnormal performance is determined by comparing this with observed performance.",
+      "trust_score": 0.486,
+      "temporal_status": "VALID",
+      "faithfulness": 0.75,
+      "passed": true,
+      "retries": 0,
+      "strategy": "vector",
+      "n_sources": 11,
+      "seconds": 36.5,
+      "abstained": false
+    },
+    {
+      "id": "IE05",
+      "question": "What is the recommended tyre pressure for a Toyota Avanza?",
+      "expected_papers": [],
+      "expected_behavior": "MUST decline: wholly outside the corpus, no shared vocabulary with any paper. The control case - if the agent fabricates even here, the failure is unconditional rather than domain-confusion. Vector correctly returns 0; keyword retry pulls 5 chunks from 4 unrelated papers. Same mechanism observed live on a motorcycle oil-change question, which produced a fully fabricated 12-step procedure.",
+      "abstention_expected": true,
+      "leaked_chunks": 5,
+      "retrieval_hit": false,
+      "top_paper_correct": false,
+      "chunk_precision": 0.0,
+      "coverage": 0.0,
+      "papers_retrieved": [
+        {
+          "id": "P7",
+          "chunks": 2
+        },
+        {
+          "id": "P5",
+          "chunks": 1
+        },
+        {
+          "id": "P4",
+          "chunks": 1
+        },
+        {
+          "id": "P1",
+          "chunks": 1
+        }
+      ],
+      "evidence_present": false,
+      "missing_required": [],
+      "matched_any_of": [],
+      "forbidden_present": [
+        "psi"
+      ],
+      "cross_paper_entities": [],
+      "answer": "The recommended tyre pressure for a Toyota Avanza varies based on the vehicle load and driving conditions:\n\n- For normal driving conditions (up to 4 passengers), the recommended tire inflation pressure is 25 psi (1.72 bar) in the front tires, and 24 psi (1.68 bar) in the rear tires.\n- If you are carrying a heavy load or driving on rough terrain, reduce the tire pressure by about 2 psi (0.14 bar) for each additional passenger or cargo over 4 passengers, up to a maximum of 18 psi (1.24 bar) in the front and 17 psi (1.19 bar) in the rear tires.\n\nAlways check your Toyota Avanza's owner's manual for the most accurate tire pressure recommendations specific to your vehicle model and year.\n\n[!] Unverified: the answer may not be fully grounded in the sources. Treat this answer with caution.",
+      "trust_score": 0.4847,
+      "temporal_status": "VALID",
+      "faithfulness": 0.0,
+      "passed": false,
+      "retries": 1,
+      "strategy": "keyword",
+      "n_sources": 15,
+      "seconds": 40.7,
+      "abstained": false
+    }
+  ]
+}

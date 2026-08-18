@@ -112,6 +112,31 @@ def check_evidence(item: dict, answer: str) -> dict:
     }
 
 
+def check_expectations(item: dict, result) -> dict:
+    """Check the level-3 expectations that are about the verifier, not the text.
+
+    L1/L2 items assert *where the answer came from*. Temporal and trust items
+    assert *what the verification stack concluded*: a node aged past the
+    threshold must surface as OUTDATED, a superseded one as SUPERSEDED, and a
+    low-trust set must fail the gate on trust alone. Items that declare none of
+    these fields are unaffected - every value is None and nothing is aggregated.
+    """
+    want_status = item.get("expected_temporal_status")
+    want_gate = item.get("expected_gate_passed")
+    want_trust_below = item.get("expected_trust_below")
+    return {
+        "expected_temporal_status": want_status,
+        "temporal_status_ok": (
+            None if want_status is None else result.temporal_validity_status == want_status
+        ),
+        "expected_gate_passed": want_gate,
+        "gate_ok": None if want_gate is None else result.passed == want_gate,
+        "trust_ok": (
+            None if want_trust_below is None else result.trust_score < want_trust_below
+        ),
+    }
+
+
 def cross_paper_entities(result) -> list:
     """Sources whose name is claimed by more than one paper.
 
@@ -157,6 +182,7 @@ def main() -> None:
             r = verifier.verify(it["question"])
             retrieval = score_retrieval(it, r, papers)
             evidence = check_evidence(it, r.answer)
+            expectations = check_expectations(it, r)
             rec = {
                 "id": it["id"],
                 "question": it["question"],
@@ -164,6 +190,7 @@ def main() -> None:
                 "expected_behavior": it["expected_behavior"],
                 **retrieval,
                 **evidence,
+                **expectations,
                 "cross_paper_entities": cross_paper_entities(r),
                 "answer": r.answer,
                 "trust_score": r.trust_score,
@@ -184,7 +211,11 @@ def main() -> None:
                 and not rec["forbidden_present"]
             )
             per_item.append(rec)
-            if rec["abstention_expected"]:
+            checks = [v for k, v in expectations.items()
+                      if k.endswith("_ok") and v is not None]
+            if checks:
+                ok = all(checks) and rec["evidence_present"] and not rec["forbidden_present"]
+            elif rec["abstention_expected"]:
                 ok = rec["abstained"]
             else:
                 ok = (
@@ -224,6 +255,24 @@ def main() -> None:
         ],
         "failed_top_paper": [r["id"] for r in scored if not r["top_paper_correct"]],
     }
+    exp_items = [r for r in per_item
+                 if any(r.get(k) is not None for k in ("temporal_status_ok", "gate_ok", "trust_ok"))]
+    if exp_items:
+        summary.update({
+            "n_verifier_expectation_items": len(exp_items),
+            "temporal_status_mismatches": [
+                {"id": r["id"], "want": r["expected_temporal_status"], "got": r["temporal_status"]}
+                for r in exp_items if r["temporal_status_ok"] is False
+            ],
+            "gate_mismatches": [
+                {"id": r["id"], "want": r["expected_gate_passed"], "got": r["passed"]}
+                for r in exp_items if r["gate_ok"] is False
+            ],
+            "trust_mismatches": [
+                {"id": r["id"], "got": r["trust_score"]}
+                for r in exp_items if r["trust_ok"] is False
+            ],
+        })
     if abst:
         # A gate that passes an abstention item is worse than one that fails it:
         # it certifies a fabricated answer. Reported separately so it cannot be

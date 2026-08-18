@@ -831,9 +831,16 @@ class AgenticVerifier:
             # 3. Temporal validity on the retrieved nodes (Phase 2).
             report = generate_validity_report(self.client, cfg, names=names)
             status_counts = summarise(report)
-            valid_fraction = (
-                status_counts[ValidityStatus.VALID.value] / len(report) if report else 1.0
-            )
+            # With no sources there is nothing to validate. Scoring that as
+            # valid_fraction 1.0 pays out the full validity weight for a lookup
+            # that found nothing: an out-of-corpus query scored overall
+            # confidence 0.30 while contributing zero evidence. That is the same
+            # bug the faithfulness sentinel already fixed (a failed lookup
+            # outranking a successful one); this is the validity half of it.
+            if report:
+                valid_fraction = status_counts[ValidityStatus.VALID.value] / len(report)
+            else:
+                valid_fraction = 1.0 if names else 0.0
 
             # 4. Trust scoring on the retrieved nodes (Phase 3).
             scores = score_entities(self.client, cfg, names=names)
@@ -888,12 +895,31 @@ class AgenticVerifier:
             # A retry only helps if the failing gate is something *retrieval* can
             # change (faithfulness or validity). A trust-only failure cannot be
             # fixed by re-retrieving the same low-trust graph, so stop early.
-            retrieval_can_help = (not faithfulness_ok) or (not validity_ok)
+            #
+            # An EMPTY retrieval is the same class of unfixable, even though it
+            # arrives disguised as a faithfulness failure: _generate_answer
+            # returns the no-context sentinel, the judge is short-circuited to
+            # 0.0, and the loop would normally retry. But the next strategy in
+            # the list is `keyword`, which has NO similarity threshold - so
+            # "nothing was relevant enough" gets answered by "here is whatever
+            # shares a token", and the model then fabricates on top of it.
+            #
+            # Measured on the live corpus: the question "what is the recommended
+            # oil viscosity for a diesel generator?" scores 0 chunks under the
+            # 0.78 vector threshold and 5 chunks across 4 unrelated papers under
+            # keyword. Every observed escalation of this kind produced an
+            # ungrounded answer; none recovered a correct one. Honouring the
+            # threshold means letting the empty result stand.
+            no_context = answer.strip() == _NO_CONTEXT_MESSAGE
+            retrieval_can_help = (
+                not no_context and ((not faithfulness_ok) or (not validity_ok))
+            )
             if not retrieval_can_help or attempt == max_attempts - 1:
                 logger.info(
-                    "Attempt %s did not pass (faith=%.2f trust=%.2f failing=%d); "
+                    "Attempt %s did not pass (faith=%.2f trust=%.2f failing=%d%s); "
                     "no retry would help - finalising with disclaimer.",
                     attempt, faithfulness, mean_trust, len(failing),
+                    ", retrieval empty" if no_context else "",
                 )
                 break
 
@@ -987,6 +1013,16 @@ class AgenticVerifier:
 
     def _disclaimer(self, answer: VerifiedAnswer) -> str:
         """Build a disclaimer explaining which gate(s) failed."""
+        # Nothing was retrieved: saying "the supporting nodes have low trust
+        # scores" would be false - there are no supporting nodes at all. Name
+        # the actual situation instead, since this is the one case where the
+        # honest answer is that the corpus cannot answer the question.
+        if not answer.sources_used:
+            return (
+                "Not answerable from the knowledge graph: no supporting source was "
+                "retrieved for this question. Any content above does not come from "
+                "the indexed corpus."
+            )
         issues = []
         if answer.faithfulness < self.config.verifier.min_faithfulness:
             issues.append("the answer may not be fully grounded in the sources")

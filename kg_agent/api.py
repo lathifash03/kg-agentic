@@ -12,9 +12,11 @@ Endpoint
 GET  /health          -> status koneksi Neo4j
 GET  /tools           -> daftar tool + JSON schema (untuk function-calling/MCP)
 POST /tools/{name}    -> panggil tool dengan arguments JSON
-POST /query           -> shortcut untuk tool answer_question; dengan
-                         ``{"agentic": true}`` (atau KG_ORCHESTRATOR=native)
-                         LLM yang memilih tool dan respons memuat ``tool_trace``
+POST /query           -> shortcut untuk tool answer_question; saat
+                         KG_ORCHESTRATOR=native, LLM yang memilih tool dan
+                         respons memuat ``tool_trace``. ``{"agentic": true}``
+                         hanya boleh dipakai bila server sudah menyalakannya —
+                         kalau tidak, 403.
 POST /setup           -> Phase 1 migration + Phase 3 trust scoring (idempotent)
 
 Untuk menunjuk KG milik teman: cukup ganti NEO4J_URI / NEO4J_USERNAME /
@@ -89,7 +91,8 @@ class QueryRequest(BaseModel):
     agentic: bool = Field(
         default=False,
         description="Bila true, LLM yang memilih tool lewat orchestrator "
-        "(Phase 5) dan respons memuat `tool_trace`. Gate verifikasi tetap sama.",
+        "(Phase 5) dan respons memuat `tool_trace`. Gate verifikasi tetap sama. "
+        "Ditolak 403 bila server menjalankan KG_ORCHESTRATOR=off.",
     )
 
 
@@ -151,7 +154,20 @@ def invoke_tool(name: str, body: ToolCallRequest, request: Request) -> Dict[str,
 @app.post("/query")
 def query(body: QueryRequest, request: Request) -> Dict[str, Any]:
     cfg = app.state.cfg
-    if not (body.agentic or cfg.orchestrator.enabled):
+    # `agentic` may only narrow what the server already allows, never widen it.
+    # KG_ORCHESTRATOR=off is an operator decision (the orchestrator can reach
+    # every registry tool), so a request body must not be able to switch it back
+    # on - otherwise the server's own setting is advisory.
+    if body.agentic and not cfg.orchestrator.enabled:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Orchestrator dimatikan di server (KG_ORCHESTRATOR=off); "
+                "`agentic: true` tidak bisa menyalakannya per-request. "
+                "Kirim tanpa flag itu untuk jalur terverifikasi biasa."
+            ),
+        )
+    if not cfg.orchestrator.enabled:
         return call_tool(
             "answer_question", app.state.client, cfg, {"query": body.query},
             caller=_caller(request),
@@ -173,12 +189,25 @@ def query(body: QueryRequest, request: Request) -> Dict[str, Any]:
     # the non-agentic path (the full VerifiedAnswer) and just add the trace.
     if result.verified_answer:
         return {**result.verified_answer, **common}
-    return {
-        "query": result.query,
-        "response": result.response,
-        "tool_results": result.tool_results,
-        **common,
-    }
+
+    # No verified answer means the gates never ran. Returning that as 200 would
+    # hand the caller an ungated completion in a *different* response shape than
+    # the verified path - a client reading `answer` sees the field simply
+    # missing, with nothing in the status code to signal it. Fail loudly instead,
+    # so /query has exactly one successful shape.
+    logger.warning(
+        "Orchestrated /query produced no verified answer (%s)", result.stopped_reason
+    )
+    raise HTTPException(
+        status_code=502,
+        detail={
+            "error": "no_verified_answer",
+            "query": result.query,
+            "response": result.response,
+            "tool_results": result.tool_results,
+            **common,
+        },
+    )
 
 
 @app.post("/setup")

@@ -180,7 +180,8 @@ Catatan: `passed: false` itu **normal**, bukan gejala restart gagal — lihat
 ### Kalau mau deploy kode baru (bukan sekadar restart)
 
 `docker restart` memakai image lama. Untuk memuat perubahan kode perlu rebuild,
-dan compose project ada di `/root` sehingga **butuh sudo** (password `citi`):
+dan compose project ada di `/root` sehingga **butuh sudo** (password: lihat
+catatan ops tim / password manager, jangan simpan di repo):
 
 ```bash
 sudo docker compose -f /root/lab-brain-agent/docker-compose.host.yml up -d --build

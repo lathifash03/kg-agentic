@@ -133,7 +133,8 @@ cp .env.server.example .env
 Unit systemd yang terpasang: `/etc/systemd/system/kg-agent.service`, `User=citi`,
 `WorkingDirectory=/home/citi/kg-agent`, `ExecStart=.venv/bin/uvicorn
 kg_agent.api:app --host 0.0.0.0 --port 8003`, `Restart=always`, `enabled`.
-Pemasangan butuh sudo (password citi lewat stdin `sudo -S`, bukan argv).
+Pemasangan butuh sudo (password: lihat catatan ops tim / password manager,
+jangan simpan di repo; berikan lewat stdin `sudo -S`, bukan argv).
 
 ## Verifikasi setelah deploy
 

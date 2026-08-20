@@ -92,14 +92,23 @@ def main() -> None:
     args = ap.parse_args()
 
     cfg = get_config()
-    host = urlparse(cfg.neo4j.uri).hostname or ""
-    if host not in ("localhost", "127.0.0.1", "::1"):
-        sys.exit(f"Refusing to inject into non-local target {cfg.neo4j.uri!r}.")
-
     gt_path = SUITE_DIR / args.gt
     items = [json.loads(l) for l in gt_path.read_text().splitlines() if l.strip()]
     if args.only:
         items = [i for i in items if i["id"] == args.only]
+
+    # The guard is about WRITES, not about the endpoint. Items that read the
+    # graph's own contradiction/supersession layer inject nothing and are safe
+    # anywhere; only injected items need a local sandbox. Checking the selected
+    # items (not the whole file) means `--only T03` can run against a shared KG
+    # while `--only T01` still refuses.
+    host = urlparse(cfg.neo4j.uri).hostname or ""
+    writes = [i["id"] for i in items if i.get("requires_injection", True)]
+    if writes and host not in ("localhost", "127.0.0.1", "::1"):
+        sys.exit(
+            f"Refusing to inject into non-local target {cfg.neo4j.uri!r}. "
+            f"Items needing injection: {', '.join(writes)}"
+        )
     papers = load_papers()
 
     print(f"NEO4J_URI={cfg.neo4j.uri}  (local, injection allowed)")
@@ -109,10 +118,15 @@ def main() -> None:
     with Neo4jClient.from_config(cfg) as client:
         verifier = AgenticVerifier(client, cfg)
         for it in items:
+            # Items that read the graph's own :Contradiction / :SUPERSEDES layer
+            # need no injection - and must not be given one, or the test would
+            # be measuring the fixture instead of the real pipeline output.
+            inject = it.get("injection") if it.get("requires_injection", True) else None
             snap = snapshot(client)
             t0 = time.time()
             try:
-                client.run_write(it["injection"]["cypher"])
+                if inject:
+                    client.run_write(inject["cypher"])
                 r = verifier.verify(it["question"])
                 rec = {
                     "id": it["id"], "question": it["question"],
@@ -130,7 +144,7 @@ def main() -> None:
                     "seconds": round(time.time() - t0, 1),
                 }
             finally:
-                rec_restore = restore(client, snap)
+                rec_restore = restore(client, snap) if inject else {"skipped": "no injection"}
             rec["restore"] = rec_restore
             per_item.append(rec)
             checks = [v for k, v in rec.items() if k.endswith("_ok") and v is not None]

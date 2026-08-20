@@ -110,6 +110,41 @@ class GraphSchemaConfig:
         default_factory=lambda: _env_bool("KG_TEMPORAL_RELS_ENTITY_ONLY", True)
     )
 
+    # ---------------------------------------------------------------------- #
+    # RESERVED - not read by any code path yet.
+    # ---------------------------------------------------------------------- #
+    # Property name reserved for a future consent flag ("identified" /
+    # "anonymized") coming from Rio's meeting-capture system.
+    #
+    # NOTHING reads or writes this today. It is a name claimed up front so the
+    # eventual integration does not have to rename a property that already has
+    # data under it. Deliberately NOT part of the Phase 1 migration: every node
+    # currently in the graph - papers and meeting transcripts alike - predates
+    # any consent capture, so the honest value for all of them is "absent". A
+    # migration stamping a default would manufacture a consent record that was
+    # never collected, which is worse than no record at all. Absent means
+    # unknown; it must stay absent until something real fills it in.
+    #
+    # Reserved on CHUNK and DOCUMENT rather than on the entity label, on the
+    # evidence in the live graph: consent is a property of a captured SESSION,
+    # and Chunk/Document are the nodes carrying session provenance (filename,
+    # doc_type, source_kind, source_path). Entity nodes (:Topic) carry only
+    # id/name/created_at and are reached from many chunks at once - 5 of them
+    # are currently mentioned by both paper and meeting chunks - so one Topic
+    # can have no single consent status. Storing it there would force a
+    # merge rule for conflicting statuses before there is any data to design
+    # that rule against.
+    consent_status_property: str = field(
+        default_factory=lambda: _env_str("KG_CONSENT_STATUS_PROP", "consent_status")
+    )
+    # Labels the property above is reserved on. Recorded so the intent survives
+    # in code rather than only in a thesis chapter; still read by nothing.
+    consent_status_labels: List[str] = field(
+        default_factory=lambda: _env_str(
+            "KG_CONSENT_STATUS_LABELS", "Chunk,Document"
+        ).split(",")
+    )
+
 
 # --------------------------------------------------------------------------- #
 # Phase 1 - default values written by the temporal-metadata migration

@@ -28,6 +28,7 @@ import json
 import logging
 import re
 import socket
+import time
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass, field
@@ -632,6 +633,124 @@ _EMPTY_ANSWER_MESSAGE = (
 # this one behind.
 _NO_CONTEXT_MESSAGE = "No supporting context was retrieved for this query."
 
+# Aggregate temporal status reported when retrieval produced no sources at all.
+# `VALID` used to be reported here, which reads as "every source checked out"
+# when in fact nothing was checked - the same failed-lookup-looks-successful
+# shape as the two sentinels above, in the field a caller is most likely to
+# branch on.
+_NO_SOURCES_STATUS = "NO_SOURCES"
+
+# How a disclaimer is joined onto an answer. Named once so the spoken-summary
+# path can split it back off instead of re-encoding the same literal.
+_DISCLAIMER_MARKER = "\n\n[!] "
+
+# System prompt for the optional spoken summary. Only ever runs when the caller
+# explicitly asks (`spoken=True`): it costs one extra LLM call per query, which
+# an eval sweep should not pay for a field it does not read.
+# Written as explicit prohibitions rather than one summary instruction: asked
+# only to "summarise in 2-3 sentences with no inline citations", hermes3:3b
+# returned a numbered list that still carried "(Vandermerwe and Rada, 1988, as
+# cited in Neely et al., 2011)". A small local model follows a checklist of
+# bans far better than a description of the desired style.
+_SPOKEN_SYSTEM = (
+    "Rewrite the text below as 2-3 sentences meant to be READ ALOUD.\n"
+    "Rules:\n"
+    "- Plain flowing prose. No numbered lists, no bullets, no headings, no markdown.\n"
+    "- No citations, no author names, no publication years, no parentheses.\n"
+    "- Add nothing that is not already stated in the text.\n"
+    "- Reply with the rewritten sentences only, nothing else."
+)
+
+# System prompt for the opt-in ungrounded fallback. The model is told plainly
+# that it has no sources, so the text it produces is a general-knowledge answer
+# and reads as one; it is never merged into `answer`.
+_UNGROUNDED_SYSTEM = (
+    "Answer the question from your own general knowledge. You have NO sources "
+    "from the knowledge graph for this question, so state briefly that this is "
+    "not grounded in the indexed corpus, then answer as best you can. Be "
+    "concise and flag anything you are unsure of."
+)
+
+# Corpus-coverage blurb cache: {neo4j uri: (expires_at, text)}. The refusal path
+# must stay free, so the small read behind the blurb is not repeated for every
+# out-of-corpus question.
+_COVERAGE_TTL_SECONDS = 900.0
+_COVERAGE_CACHE: Dict[str, tuple] = {}
+
+# Document types whose FILENAMES may be named in a refusal. Papers are already
+# published artefacts, so listing them is a redirect rather than a disclosure.
+# Everything else (meeting transcripts above all) is counted but never named -
+# see _corpus_coverage.
+_PUBLIC_DOC_TYPES = {"paper"}
+
+# Ingest appends a content hash to each filename ("Neely_2008_Servitization_
+# b5e36f47"). It carries nothing for a reader being pointed at a topic, and the
+# refusal may be read aloud via answer_spoken.
+_DOC_HASH_SUFFIX = re.compile(r"_[0-9a-f]{6,}$", re.IGNORECASE)
+
+
+def _readable_document_name(filename: str) -> str:
+    """Strip the ingest hash suffix and underscores from a document filename."""
+    return _DOC_HASH_SUFFIX.sub("", filename).replace("_", " ").strip()
+
+
+# A parenthetical containing a 4-digit year - "(Vandermerwe and Rada, 1988)",
+# "(introduced by Neely, as per Brax, 2005)". Deliberately narrow: a
+# parenthetical WITHOUT a year is normal prose and is left alone.
+#
+# The optional trailing letter covers the disambiguating form academic writing
+# uses for same-year works: "(Mathieu 2001a, b)" survived a strict \d{4}\b
+# because the "a" denies the word boundary, and it reached a spoken answer.
+_INLINE_CITATION = re.compile(r"\s*\((?:[^()]*?\b(?:19|20)\d{2}[a-z]?\b[^()]*?)\)")
+# Left behind once a citation is cut out: " ," / " ." / doubled spaces.
+_ORPHANED_PUNCT = re.compile(r"\s+([,.;:])")
+
+
+# A line that opens with a list marker: "- Service Specificity: ...",
+# "* item", "1. item", "a. item".
+_LIST_MARKER = re.compile(r"^\s*(?:[-*\u2022]|\d+[.)]|[a-z][.)])\s+", re.MULTILINE)
+
+
+def _flatten_for_speech(text: str) -> str:
+    """Fold list markers and line breaks into continuous prose.
+
+    Bullets are a visual device: read aloud they arrive as unconnected
+    fragments with no audible boundary between items. Told not to produce them,
+    hermes3:3b dropped its numbered list but returned dashed bullets in its
+    place, so this is enforced rather than requested - same reason as
+    :func:`_strip_inline_citations`.
+
+    Only the markers and the line breaks go; the wording is untouched, and a
+    separator is added so two items do not run together into one sentence.
+    """
+    without_markers = _LIST_MARKER.sub(" ", text)
+    lines = [ln.strip() for ln in without_markers.splitlines() if ln.strip()]
+    joined = ""
+    for line in lines:
+        if joined and not joined.endswith((".", "!", "?", ":", ";", ",")):
+            joined += "."
+        joined = f"{joined} {line}" if joined else line
+    return re.sub(r"[ \t]{2,}", " ", joined).strip()
+
+
+def _strip_inline_citations(text: str) -> str:
+    """Remove year-bearing parentheticals from text destined for speech.
+
+    Enforced in code rather than left to the prompt because it could not be
+    won by prompting. Told explicitly "no citations, no author names, no
+    publication years, no parentheses", hermes3:3b still returned
+    "(Vandermerwe and Rada, 1988)" and "(introduced by Neely, as per Brax,
+    2005)". "No inline citations" is the defining requirement of the spoken
+    field - a listener cannot skim past a citation the way a reader can - so it
+    has to hold for every model, including one that ignores the instruction.
+
+    Only the citation is dropped; nothing is reworded, so the strip cannot
+    introduce a claim the verified answer did not make.
+    """
+    cleaned = _INLINE_CITATION.sub("", text)
+    cleaned = _ORPHANED_PUNCT.sub(r"\1", cleaned)
+    return re.sub(r"[ \t]{2,}", " ", cleaned).strip()
+
 
 # =========================================================================== #
 # Verifier
@@ -674,6 +793,14 @@ class VerifiedAnswer:
     documents_used
         ``{name, chunks}`` per source document the answer drew on, most-cited
         first. Empty unless a chunk source property is configured.
+    answer_spoken
+        A 2-3 sentence, citation-free rendering of ``answer`` for text-to-speech.
+        ``None`` unless the caller passed ``spoken=True``.
+    ungrounded_answer
+        A general-knowledge completion produced WITHOUT any context, kept
+        strictly separate from ``answer``. ``None`` unless the caller passed
+        ``allow_ungrounded=True`` and retrieval came back empty. It deliberately
+        does not feed ``passed``, ``overall_confidence`` or ``sources_used``.
     """
 
     query: str
@@ -689,10 +816,23 @@ class VerifiedAnswer:
     explanation: str
     disclaimer: str = ""
     documents_used: List[Dict[str, Any]] = field(default_factory=list)
+    answer_spoken: Optional[str] = None
+    ungrounded_answer: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        """Return a JSON-serialisable dictionary of the verified answer."""
-        return asdict(self)
+        """Return a JSON-serialisable dictionary of the verified answer.
+
+        The two opt-in fields are omitted entirely when unset rather than
+        serialised as ``null``, so a default run emits exactly the same keys it
+        emitted before they existed - stored eval results stay comparable, and
+        "the field is absent" means "nobody asked for it" rather than "it was
+        asked for and came back empty".
+        """
+        data = asdict(self)
+        for key in ("answer_spoken", "ungrounded_answer"):
+            if data[key] is None:
+                del data[key]
+        return data
 
 
 # Severity order for aggregating per-node statuses into one verdict.
@@ -735,10 +875,104 @@ class AgenticVerifier:
         case, so it gets its own explicit sentinel.
         """
         if not context.strip():
-            return _NO_CONTEXT_MESSAGE
+            return self._no_context_message()
         user = f"QUESTION: {query}\n\nCONTEXT:\n{context}"
         raw = self.llm.complete(_ANSWER_SYSTEM, user).strip()
         return raw or _EMPTY_ANSWER_MESSAGE
+
+    def _no_context_message(self) -> str:
+        """The refusal returned when retrieval found nothing.
+
+        A bare "no supporting context was retrieved" is true but useless: it
+        tells the user nothing about what this corpus *could* answer, so the
+        natural next move is to rephrase the same out-of-scope question. Naming
+        the corpus turns a dead end into a redirect.
+
+        Costs no LLM call - one grouped read, cached for
+        ``_COVERAGE_TTL_SECONDS`` - and always begins with
+        :data:`_NO_CONTEXT_MESSAGE` so the sentinel checks downstream keep
+        matching on a stable prefix.
+        """
+        coverage = self._corpus_coverage()
+        if not coverage:
+            return _NO_CONTEXT_MESSAGE
+        return f"{_NO_CONTEXT_MESSAGE} {coverage}"
+
+    def _corpus_coverage(self) -> str:
+        """One sentence describing what the indexed corpus actually holds.
+
+        Counts every document by type, but NAMES only the ones whose
+        ``doc_type`` is in :data:`_PUBLIC_DOC_TYPES`. This path is reachable by
+        anyone who asks a question the corpus cannot answer, and the live graph
+        holds 14 meeting transcripts whose filenames carry a participant name
+        and a date (``0423-harry-20260422-...-meeting-recording``). Listing
+        those would turn every refusal into a disclosure of who met when -
+        strictly more than the question asked for, handed to someone the corpus
+        just told it had nothing for. Counts convey the same "ask about this
+        instead" signal without naming anyone.
+
+        Returns ``""`` when the graph cannot be reached or holds no documents,
+        so the caller falls back to the bare sentinel: an enrichment failing
+        must never turn a clean refusal into an error.
+        """
+        uri = getattr(self.config.neo4j, "uri", "")
+        cached = _COVERAGE_CACHE.get(uri)
+        now = time.monotonic()
+        if cached and cached[0] > now:
+            return cached[1]
+
+        try:
+            # `_label` is already backtick-escaped by the client; wrapping it
+            # again produces ``Topic`` and a syntax error the except-clause
+            # would then swallow, silently degrading back to the bare sentinel.
+            rows = self.client.run_read(
+                f"""
+                CALL () {{
+                    MATCH (d:Document)
+                    RETURN collect({{
+                        doc_type: d.doc_type,
+                        filename: d.filename
+                    }}) AS documents
+                }}
+                CALL () {{
+                    MATCH (t:{self.client._label}) RETURN count(t) AS topics
+                }}
+                RETURN documents, topics
+                """
+            )
+        except Exception as exc:  # noqa: BLE001 - enrichment only, never fatal
+            logger.debug("Corpus coverage unavailable (%s); using bare refusal.", exc)
+            return ""
+
+        row = rows[0] if rows else {}
+        documents = row.get("documents") or []
+        topics = row.get("topics") or 0
+        if not documents:
+            return ""
+
+        by_type: Dict[str, int] = {}
+        public: List[str] = []
+        for doc in documents:
+            doc_type = (doc.get("doc_type") or "document").strip().lower()
+            by_type[doc_type] = by_type.get(doc_type, 0) + 1
+            if doc_type in _PUBLIC_DOC_TYPES and doc.get("filename"):
+                public.append(_readable_document_name(doc["filename"]))
+
+        breakdown = ", ".join(
+            f"{count} {doc_type}" for doc_type, count in sorted(by_type.items())
+        )
+        text = (
+            f"The indexed corpus holds {len(documents)} document(s) "
+            f"({breakdown}) and {topics} topic(s)."
+        )
+        if public:
+            shown = ", ".join(sorted(public)[:6])
+            more = " and others" if len(public) > 6 else ""
+            text += f" The papers are: {shown}{more}."
+        text += " Try a question about that material instead."
+
+        _COVERAGE_CACHE[uri] = (now + _COVERAGE_TTL_SECONDS, text)
+        return text
 
     def _check_faithfulness(self, answer: str, context: str) -> Dict[str, Any]:
         """Run the Step 3 faithfulness check, returning a parsed result dict.
@@ -751,8 +985,13 @@ class AgenticVerifier:
         overall confidence).
         """
         stripped = answer.strip()
-        if not stripped or stripped in (_EMPTY_ANSWER_MESSAGE, _NO_CONTEXT_MESSAGE):
-            verdict = "no_context" if stripped == _NO_CONTEXT_MESSAGE else "empty_answer"
+        # The refusal now carries a corpus-coverage tail, so match its stable
+        # OPENING SENTENCE rather than the whole string. An equality check here
+        # would quietly stop short-circuiting the moment that tail changes, and
+        # the judge would go back to scoring refusals 1.0.
+        is_no_context = stripped.startswith(_NO_CONTEXT_MESSAGE)
+        if not stripped or is_no_context or stripped == _EMPTY_ANSWER_MESSAGE:
+            verdict = "no_context" if is_no_context else "empty_answer"
             return {"faithfulness": 0.0, "verdict": verdict, "unsupported_claims": []}
         user = f"ANSWER: {answer}\n\nSOURCES: {context}"
         raw = self.judge.complete(_FAITHFULNESS_SYSTEM, user)
@@ -760,9 +999,15 @@ class AgenticVerifier:
 
     # -- aggregation helpers --------------------------------------------- #
     def _aggregate_status(self, report: List[NodeValidity]) -> str:
-        """Reduce per-node validity to a single worst-case status string."""
+        """Reduce per-node validity to a single worst-case status string.
+
+        An empty report means nothing was retrieved, not that everything
+        checked out. Reporting `VALID` there told a caller the sources were
+        sound when there were no sources at all, which is the one reading that
+        is never true.
+        """
         if not report:
-            return ValidityStatus.VALID.value
+            return _NO_SOURCES_STATUS
         worst = max(report, key=lambda r: _STATUS_SEVERITY[r.status.value])
         return worst.status.value
 
@@ -781,9 +1026,46 @@ class AgenticVerifier:
         ) / total
         return round(blended, 4)
 
+    # -- optional extras -------------------------------------------------- #
+    def _generate_ungrounded(self, query: str) -> str:
+        """Answer from the model's own knowledge, with no context at all."""
+        raw = self.llm.complete(_UNGROUNDED_SYSTEM, query).strip()
+        return raw or _EMPTY_ANSWER_MESSAGE
+
+    def _summarise_for_speech(self, answer: str, disclaimer: str = "") -> str:
+        """Condense a finished answer into something worth hearing read aloud.
+
+        Takes the FINISHED ``answer`` as its only input, never the raw context:
+        no second retrieval, and nothing can enter the spoken text that was not
+        already in the verified answer the gates were run against.
+
+        The disclaimer is split off before the model sees it and re-attached
+        verbatim afterwards. Left in the input it is simply dropped - observed
+        live: a servitization answer carrying "Unverified: the supporting nodes
+        have low trust scores" came back as a clean-sounding summary with no
+        caveat at all. The whole point of this field is that it gets read out
+        loud, and a listener has nothing else to go on: the caveat cannot be
+        left to the model's discretion.
+        """
+        body, _, _tail = answer.partition(_DISCLAIMER_MARKER)
+        raw = self.llm.complete(_SPOKEN_SYSTEM, body.strip()).strip()
+        spoken = (
+            _flatten_for_speech(_strip_inline_citations(raw))
+            if raw
+            else _EMPTY_ANSWER_MESSAGE
+        )
+        if disclaimer:
+            spoken = f"{spoken} Please note: {disclaimer}"
+        return spoken
+
     # -- main loop -------------------------------------------------------- #
     def verify(
-        self, query: str, node_names: Optional[List[str]] = None
+        self,
+        query: str,
+        node_names: Optional[List[str]] = None,
+        *,
+        allow_ungrounded: bool = False,
+        spoken: bool = False,
     ) -> VerifiedAnswer:
         """Run the full verification loop for ``query``.
 
@@ -795,16 +1077,54 @@ class AgenticVerifier:
             Optional pre-retrieved entity names (from an upstream KG-RAG
             retriever). When provided, retrieval is skipped on the first pass
             and these nodes are used directly.
+        allow_ungrounded
+            Opt in to an ungrounded, general-knowledge completion when
+            retrieval found nothing. It is written to ``ungrounded_answer`` and
+            nowhere else: ``answer`` stays the refusal, ``passed`` stays False,
+            ``overall_confidence`` stays 0.0 and ``sources_used`` stays empty.
+            Off by default - an unsourced answer must be asked for, never
+            volunteered.
+        spoken
+            Opt in to ``answer_spoken``, a short spoken-form summary of the
+            finished answer. Off by default because it costs one extra LLM call
+            that a normal eval run has no use for.
 
         Returns
         -------
         VerifiedAnswer
+
+        Notes
+        -----
+        Both extras run strictly AFTER the verification loop has finished and
+        the gates have been decided. Neither can influence the gate outcome,
+        which is why they live here rather than inside :meth:`_verify_core`.
+        """
+        result, no_context = self._verify_core(query, node_names)
+
+        if allow_ungrounded and no_context:
+            result.ungrounded_answer = self._generate_ungrounded(query)
+
+        if spoken:
+            result.answer_spoken = self._summarise_for_speech(
+                result.answer, result.disclaimer
+            )
+
+        return result
+
+    def _verify_core(
+        self, query: str, node_names: Optional[List[str]] = None
+    ) -> tuple:
+        """The verification loop itself, unchanged by the opt-in extras.
+
+        Returns ``(answer, no_context)`` where ``no_context`` reports whether
+        the attempt behind the returned answer retrieved literally nothing.
         """
         cfg = self.config
         strategies = cfg.verifier.retry_strategies or ["keyword"]
         max_attempts = cfg.verifier.max_retries + 1
 
         best: Optional[VerifiedAnswer] = None
+        best_no_context = False
         attempts_run = 0
 
         for attempt in range(max_attempts):
@@ -824,6 +1144,13 @@ class AgenticVerifier:
                 context = ctx.context_text()
                 documents = ctx.documents
                 entity_documents = ctx.entity_documents
+
+            # Did this attempt retrieve literally nothing? Read off the CONTEXT
+            # rather than off the answer string: the refusal text is dynamic now
+            # (it names the corpus), so matching it would be a second thing to
+            # keep in sync, and a stale match here silently re-enables the retry
+            # this flag exists to stop.
+            no_context = not context.strip()
 
             # 2. Generate a grounded answer.
             answer = self._generate_answer(query, context)
@@ -863,7 +1190,16 @@ class AgenticVerifier:
             passed = faithfulness_ok and trust_ok and validity_ok
 
             sources_used = self._build_sources(report, scores, names, entity_documents)
-            overall = self._overall_confidence(faithfulness, mean_trust, valid_fraction)
+            # Zero sources is zero confidence, stated outright rather than left
+            # to the weights. The blended formula lands at 0.0 today only
+            # because valid_fraction stopped paying out for an empty report; it
+            # still returns a positive number when names come back but none
+            # resolve to a node, and there is no reading under which an answer
+            # resting on nothing has earned confidence in it.
+            if sources_used:
+                overall = self._overall_confidence(faithfulness, mean_trust, valid_fraction)
+            else:
+                overall = 0.0
             explanation = self._explain(
                 strategy, faithfulness_ok, trust_ok, validity_ok,
                 faithfulness, mean_trust, failing,
@@ -887,10 +1223,11 @@ class AgenticVerifier:
             # Keep the most confident attempt seen so far.
             if best is None or candidate.overall_confidence > best.overall_confidence:
                 best = candidate
+                best_no_context = no_context
 
             if passed:
                 logger.info("Verification passed on attempt %s (%s).", attempt, strategy)
-                return candidate
+                return candidate, no_context
 
             # A retry only helps if the failing gate is something *retrieval* can
             # change (faithfulness or validity). A trust-only failure cannot be
@@ -910,7 +1247,6 @@ class AgenticVerifier:
             # keyword. Every observed escalation of this kind produced an
             # ungrounded answer; none recovered a correct one. Honouring the
             # threshold means letting the empty result stand.
-            no_context = answer.strip() == _NO_CONTEXT_MESSAGE
             retrieval_can_help = (
                 not no_context and ((not faithfulness_ok) or (not validity_ok))
             )
@@ -939,8 +1275,8 @@ class AgenticVerifier:
         # own count so `retries` never under-states the work done.
         best.retries = attempts_run - 1
         best.disclaimer = self._disclaimer(best)
-        best.answer = f"{best.answer}\n\n[!] {best.disclaimer}"
-        return best
+        best.answer = f"{best.answer}{_DISCLAIMER_MARKER}{best.disclaimer}"
+        return best, best_no_context
 
     # -- builders --------------------------------------------------------- #
     def _context_for_names(self, names: List[str]) -> str:

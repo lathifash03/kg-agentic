@@ -31,7 +31,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
 from kg_agent.config import Config, get_config
-from kg_agent.neo4j_client import Neo4jClient
+from kg_agent.neo4j_client import Neo4jClient, escape_label
 
 logger = logging.getLogger(__name__)
 
@@ -238,10 +238,19 @@ def classify_entity(
     superseded_map: Dict[str, str],
     conflict_map: Dict[str, List[str]],
     now: Optional[datetime] = None,
+    contradiction_map: Optional[Dict[str, List[str]]] = None,
 ) -> NodeValidity:
     """Classify a single entity into a :class:`NodeValidity`.
 
     Applies the precedence SUPERSEDED > CONFLICTED > OUTDATED > VALID.
+
+    Two independent things can produce CONFLICTED, and they are not
+    interchangeable. ``conflict_map`` is the structural signal: two nodes assert
+    the same name, so one of them is probably wrong. ``contradiction_map`` is the
+    semantic signal: an upstream classifier read two claims and judged them
+    incompatible. The second is far stronger evidence and says *what* the
+    disagreement is, so its reason text carries the classifier's own summary
+    rather than a list of colliding names.
 
     Parameters
     ----------
@@ -282,6 +291,15 @@ def classify_entity(
         result.reasons.append(f"Superseded by newer node '{superseded_map[element_id]}'.")
         return result
 
+    if contradiction_map and element_id in contradiction_map:
+        result.status = ValidityStatus.CONFLICTED
+        result.conflicts_with = contradiction_map[element_id]
+        result.reasons.append(
+            "Contradiction flagged by the upstream classifier: "
+            + "; ".join(contradiction_map[element_id])
+        )
+        return result
+
     if element_id in conflict_map:
         result.status = ValidityStatus.CONFLICTED
         result.conflicts_with = conflict_map[element_id]
@@ -309,12 +327,59 @@ def classify_entity(
     return result
 
 
+def find_pipeline_contradictions(
+    client: Neo4jClient,
+    config: Config,
+    entities: List[Dict[str, Any]],
+) -> Dict[str, List[str]]:
+    """Find contradictions an upstream classifier already recorded in the graph.
+
+    Walks ``(:Chunk)-[:MENTIONS]->(:Description)-[:HAS_CONTRADICTION]->(:Contradiction)``
+    and attributes each contradiction to the entities mentioned by the *same*
+    chunk. Sharing a chunk is what makes the attribution tight: the claim and the
+    entity were written about together.
+
+    Do NOT be tempted to reach these through ``(:Topic)-[:HAS_TYPE]->(:Type)
+    -[:HAS_DESCRIPTION]->(:Description)`` instead. That path exists and looks
+    equivalent, but ``Type`` is a coarse bucket: measured on the live graph, one
+    contradiction reached 672 topics that way versus 6-12 through chunks. Using
+    it would mark almost every answer CONFLICTED and make the status worthless.
+
+    Returns
+    -------
+    Dict[str, List[str]]
+        Maps ``element_id`` -> the contradiction summaries touching that node.
+        Empty when the graph carries no ``:Contradiction`` layer at all, so
+        graphs without one behave exactly as before.
+    """
+    names = [e["name"] for e in entities if e.get("name")]
+    if not names:
+        return {}
+    entity_label = escape_label(config.schema.entity_label)
+    name_prop = config.schema.entity_name_property
+    chunk_label = escape_label(config.retrieval.chunk_label)
+    cypher = f"""
+        MATCH (c:{chunk_label})-[:MENTIONS]->(d:Description)-[:HAS_CONTRADICTION]->(k:Contradiction)
+        MATCH (c)-[:MENTIONS]->(e:{entity_label})
+        WHERE toLower(e.{name_prop}) IN $names
+        RETURN elementId(e) AS element_id,
+               collect(DISTINCT coalesce(k.summary, k.id)) AS summaries
+    """
+    try:
+        rows = client.run_read(cypher, names=[n.lower() for n in names])
+    except Exception:  # pragma: no cover - graph simply has no such layer
+        logger.debug("No :Contradiction layer reachable; skipping.", exc_info=True)
+        return {}
+    return {r["element_id"]: r["summaries"] for r in rows if r.get("summaries")}
+
+
 def build_report(
     entities: List[Dict[str, Any]],
     superseded_map: Dict[str, str],
     threshold_days: int,
     require_different_description: bool = False,
     now: Optional[datetime] = None,
+    contradiction_map: Optional[Dict[str, List[str]]] = None,
 ) -> List[NodeValidity]:
     """Classify a list of entities into validity results (pure, no DB).
 
@@ -338,7 +403,10 @@ def build_report(
     now = now or _utcnow()
     conflict_map = find_conflicting_ids(entities, require_different_description)
     return [
-        classify_entity(e, threshold_days, superseded_map, conflict_map, now)
+        classify_entity(
+            e, threshold_days, superseded_map, conflict_map, now,
+            contradiction_map=contradiction_map,
+        )
         for e in entities
     ]
 
@@ -414,6 +482,7 @@ def generate_validity_report(
         threshold_days=threshold,
         require_different_description=config.temporal_validity.conflict_requires_different_description,
         now=now,
+        contradiction_map=find_pipeline_contradictions(client, config, entities),
     )
 
 

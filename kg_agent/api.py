@@ -17,6 +17,14 @@ POST /query           -> shortcut untuk tool answer_question; saat
                          respons memuat ``tool_trace``. ``{"agentic": true}``
                          hanya boleh dipakai bila server sudah menyalakannya —
                          kalau tidak, 403.
+                         Dua opsi tambahan, keduanya default MATI: body
+                         ``{"allow_ungrounded": true}`` mengisi
+                         ``ungrounded_answer`` (jawaban tanpa sumber, di field
+                         terpisah — ``answer``/``passed``/
+                         ``overall_confidence``/``sources_used`` tidak ikut
+                         berubah), dan query param ``?spoken=true`` mengisi
+                         ``answer_spoken`` (ringkasan untuk TTS; satu
+                         panggilan LLM ekstra).
 POST /setup           -> Phase 1 migration + Phase 3 trust scoring (idempotent)
 
 Untuk menunjuk KG milik teman: cukup ganti NEO4J_URI / NEO4J_USERNAME /
@@ -88,6 +96,14 @@ app = FastAPI(
 # --------------------------------------------------------------------------- #
 class QueryRequest(BaseModel):
     query: str = Field(..., min_length=1, description="Pertanyaan untuk KG.")
+    allow_ungrounded: bool = Field(
+        default=False,
+        description="Bila true DAN retrieval kosong, respons memuat "
+        "`ungrounded_answer`: jawaban dari pengetahuan umum model, TANPA "
+        "sumber KG. Disimpan di field sendiri — `answer` tetap penolakan, "
+        "`passed` tetap false, `overall_confidence` tetap 0.0, `sources_used` "
+        "tetap kosong. Default false: jawaban tanpa sumber harus diminta.",
+    )
     agentic: bool = Field(
         default=False,
         description="Bila true, LLM yang memilih tool lewat orchestrator "
@@ -152,7 +168,9 @@ def invoke_tool(name: str, body: ToolCallRequest, request: Request) -> Dict[str,
 
 
 @app.post("/query")
-def query(body: QueryRequest, request: Request) -> Dict[str, Any]:
+def query(
+    body: QueryRequest, request: Request, spoken: bool = False
+) -> Dict[str, Any]:
     cfg = app.state.cfg
     # `agentic` may only narrow what the server already allows, never widen it.
     # KG_ORCHESTRATOR=off is an operator decision (the orchestrator can reach
@@ -169,8 +187,28 @@ def query(body: QueryRequest, request: Request) -> Dict[str, Any]:
         )
     if not cfg.orchestrator.enabled:
         return call_tool(
-            "answer_question", app.state.client, cfg, {"query": body.query},
+            "answer_question", app.state.client, cfg,
+            {
+                "query": body.query,
+                "allow_ungrounded": body.allow_ungrounded,
+                "spoken": spoken,
+            },
             caller=_caller(request),
+        )
+
+    # Jalur orchestrator: argumen tool dipilih LLM, jadi kedua opsi ini tidak
+    # bisa diteruskan. Menerimanya diam-diam berarti membalas 200 tanpa field
+    # yang diminta - caller menyimpulkan "tidak ada jawaban ungrounded", padahal
+    # flag-nya memang tak pernah sampai ke verifier. Tolak terang-terangan.
+    if body.allow_ungrounded or spoken:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "`allow_ungrounded` dan `spoken` hanya berlaku di jalur "
+                "terverifikasi langsung; server ini menjalankan "
+                "KG_ORCHESTRATOR=native, di mana argumen tool dipilih LLM. "
+                "Pakai POST /tools/answer_question untuk memakai keduanya."
+            ),
         )
 
     try:

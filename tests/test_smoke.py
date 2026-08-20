@@ -1647,6 +1647,106 @@ def test_provenance_summary_reports_the_spread():
     assert out["distinct_values"] == 3
 
 
+
+# --------------------------------------------------------------------------- #
+# Informative refusal, zero-source reporting, and the two opt-in fields
+# --------------------------------------------------------------------------- #
+def test_no_sources_reports_its_own_status_not_valid():
+    """An empty report means nothing was checked, not that everything passed.
+
+    `VALID` here told a caller the sources were sound when there were no
+    sources - the one reading that is never true.
+    """
+    from kg_agent.agentic_verifier import _NO_SOURCES_STATUS
+
+    verifier = _bare_verifier()
+    assert verifier._aggregate_status([]) == _NO_SOURCES_STATUS
+    assert _NO_SOURCES_STATUS != "VALID"
+
+
+def test_faithfulness_short_circuit_survives_a_corpus_coverage_tail():
+    """The refusal now carries a corpus blurb, so the judge guard must match on
+    the opening sentence - an equality check would silently stop firing and the
+    judge would go back to scoring refusals 1.0.
+    """
+    from kg_agent.agentic_verifier import _NO_CONTEXT_MESSAGE
+
+    judge = _FakeCompletionLLM('{"faithfulness": 1.0, "verdict": "supported"}')
+    verifier = _bare_verifier(llm=None, judge=judge)
+
+    enriched = f"{_NO_CONTEXT_MESSAGE} The indexed corpus holds 32 document(s)."
+    result = verifier._check_faithfulness(enriched, "")
+
+    assert result["faithfulness"] == 0.0
+    assert result["verdict"] == "no_context"
+    assert judge.calls == []
+
+
+def test_optional_fields_are_absent_unless_asked_for():
+    """A default run must emit exactly the keys it emitted before these fields
+    existed, so stored eval results stay comparable.
+    """
+    from kg_agent.agentic_verifier import VerifiedAnswer
+
+    answer = VerifiedAnswer(
+        query="q", answer="a", trust_score=0.5, temporal_validity_status="VALID",
+        sources_used=[], overall_confidence=0.5, faithfulness=0.8, passed=True,
+        retries=0, strategy="vector", explanation="",
+    )
+    data = answer.to_dict()
+    assert "answer_spoken" not in data
+    assert "ungrounded_answer" not in data
+
+    answer.answer_spoken = "spoken form"
+    assert answer.to_dict()["answer_spoken"] == "spoken form"
+
+
+def test_spoken_summary_strips_citations_and_keeps_the_disclaimer():
+    """Two things the model cannot be trusted with: hermes3:3b kept
+    "(Vandermerwe and Rada, 1988)" after being told not to, and dropped the
+    "Unverified" caveat entirely. A listener cannot skim past either.
+    """
+    llm = _FakeCompletionLLM("Servitization is a shift (Vandermerwe and Rada, 1988).")
+    verifier = _bare_verifier(llm=llm)
+
+    spoken = verifier._summarise_for_speech(
+        "Long answer.\n\n[!] Unverified: low trust.", "Unverified: low trust."
+    )
+
+    assert "1988" not in spoken
+    assert "Unverified: low trust." in spoken
+    # The disclaimer is split off before the model sees it, so it cannot be
+    # summarised away - the model only ever receives the answer body.
+    assert "[!]" not in llm.calls[0][1]
+
+
+def test_spoken_summary_flattens_bullets_into_prose():
+    """Read aloud, a bullet list arrives as unconnected fragments. Told not to
+    produce lists, hermes3:3b swapped its numbered list for dashed bullets - so
+    the flattening is enforced, not requested.
+    """
+    llm = _FakeCompletionLLM("They divide into:\n- Specificity: three stages\n- Intensity: low to high.")
+    verifier = _bare_verifier(llm=llm)
+
+    spoken = verifier._summarise_for_speech("Long answer.")
+
+    assert "\n" not in spoken
+    assert "- " not in spoken
+    assert "Specificity: three stages" in spoken
+
+
+def test_citation_strip_leaves_ordinary_parentheticals_alone():
+    """Only year-bearing parentheticals are citations; the rest is prose."""
+    from kg_agent.agentic_verifier import _strip_inline_citations
+
+    assert _strip_inline_citations("A study (Smith, 2010) found it.") == "A study found it."
+    # "2001a" denies the word boundary a strict \d{4}\b needs; this exact form
+    # reached a spoken answer live as "(Mathieu 2001a, b)".
+    assert _strip_inline_citations("A typology (Mathieu 2001a, b) exists.") == "A typology exists."
+    kept = "The gate (a threshold) held."
+    assert _strip_inline_citations(kept) == kept
+
+
 if __name__ == "__main__":
     import pytest as _pytest
 

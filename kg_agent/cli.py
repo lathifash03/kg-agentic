@@ -7,10 +7,21 @@ Wires Phases 1-4 together::
     python -m kg_agent.cli --setup              # run Phase 1 + Phase 3 first
     python -m kg_agent.cli --query "..." --json # machine-readable output
     python -m kg_agent.cli --query "..." --agentic  # let the LLM pick the tool
+    python -m kg_agent.cli --query "..." --spoken   # also emit answer_spoken
+    python -m kg_agent.cli --query "..." --allow-ungrounded  # see below
 
 ``--setup`` applies the Phase 1 temporal-metadata migration and computes/stores
 Phase 3 trust scores before answering (idempotent; safe to repeat). Without it,
 the demo assumes those have already been run.
+
+``--spoken`` adds ``answer_spoken``: a 2-3 sentence, citation-free rendering of
+the finished answer for text-to-speech. ``answer`` itself is never touched, and
+the extra LLM call only happens when the flag is passed.
+
+``--allow-ungrounded`` opts in to ``ungrounded_answer`` for questions the corpus
+cannot answer: a general-knowledge completion kept in its own field, leaving
+``answer`` as the refusal and ``passed``/``overall_confidence``/``sources_used``
+untouched. Off by default - an unsourced answer has to be asked for.
 
 ``--agentic`` (or ``KG_ORCHESTRATOR=native``) routes the query through the
 Phase 5 tool-calling orchestrator, which asks the LLM which tool to use instead
@@ -46,6 +57,15 @@ def _print_human(result: VerifiedAnswer) -> None:
     print(f"  overall_confidence            : {result.overall_confidence}")
     print(f"  passed gates                  : {result.passed}")
     print(f"  retrieval strategy / retries  : {result.strategy} / {result.retries}")
+    if result.answer_spoken is not None:
+        print(f"\nANSWER (spoken form):\n{result.answer_spoken}\n")
+        print("-" * 72)
+    if result.ungrounded_answer is not None:
+        print(
+            "\nUNGROUNDED ANSWER (opt-in; NOT from the knowledge graph, not "
+            f"gated, not counted in any score above):\n{result.ungrounded_answer}\n"
+        )
+        print("-" * 72)
     print(f"\n  explanation: {result.explanation}")
     print("\n  sources_used:")
     if not result.sources_used:
@@ -109,6 +129,19 @@ def main() -> None:
     )
     parser.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
     parser.add_argument(
+        "--spoken",
+        action="store_true",
+        help="Also produce `answer_spoken`, a short TTS-friendly summary of the "
+        "finished answer. Costs one extra LLM call; `answer` is unchanged.",
+    )
+    parser.add_argument(
+        "--allow-ungrounded",
+        action="store_true",
+        help="When retrieval finds nothing, also produce `ungrounded_answer` "
+        "from the model's general knowledge. Kept in its own field: `answer` "
+        "stays the refusal and the gate verdict is unaffected.",
+    )
+    parser.add_argument(
         "--agentic",
         action="store_true",
         help="Let the LLM choose the tool via the Phase 5 orchestrator "
@@ -135,7 +168,11 @@ def main() -> None:
             return
 
         verifier = AgenticVerifier(client, cfg)
-        result = verifier.verify(args.query)
+        result = verifier.verify(
+            args.query,
+            allow_ungrounded=args.allow_ungrounded,
+            spoken=args.spoken,
+        )
 
         if args.json:
             print(json.dumps(result.to_dict(), indent=2, default=str))

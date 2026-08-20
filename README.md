@@ -110,6 +110,97 @@ CLI di dalam container:
 docker compose run --rm agent python -m kg_agent.cli --query "..." --setup
 ```
 
+## Server produksi (citi-condor) — restart & cek
+
+Endpoint yang dipakai Rio: **`http://100.122.56.39:8003`** di server `citi-condor`.
+
+> **Agent di condor TIDAK jalan lewat systemd.** Unit `kg-agent.service` masih ada
+> tapi **disabled & dead**, dan `WorkingDirectory=/home/citi/kg-agent` sudah tidak
+> ada. `sudo systemctl restart kg-agent` **tidak akan me-restart apa pun.**
+> [docs/DEPLOY_CITI_CONDOR.md](docs/DEPLOY_CITI_CONDOR.md) masih menjelaskan cara
+> systemd — dokumen itu sudah usang.
+
+Yang sebenarnya melayani port 8003 (per 2026-08-19):
+
+| Hal | Nilai |
+|---|---|
+| Container | `lab-brain-agent-agent-1` |
+| Image | `kg-agent-api` |
+| Compose project | `/root/lab-brain-agent/docker-compose.host.yml`, service `agent` |
+| Network | `network_mode: host` (bind langsung ke 8003) |
+| Restart policy | `unless-stopped` (otomatis hidup lagi setelah reboot) |
+| Proses | uid `10001` (user non-root `kgagent` bawaan image) |
+| Ollama | container `lab-brain-ollama`, publish `11434` |
+
+### 1. SSH dari Mac
+
+```bash
+ssh citi@100.122.56.39
+```
+
+Lewat Tailscale SSH — autentikasi pakai identitas tailnet, jadi **tidak perlu
+password maupun key**. (Prasyarat 1 di [docs/DEPLOY.md](docs/DEPLOY.md) bilang ACL
+tailnet menolak SSH dari laptop ini; itu sudah tidak berlaku.) User `citi` masuk
+grup docker, jadi perintah `docker` tidak butuh sudo.
+
+### 2. Restart
+
+```bash
+docker restart lab-brain-agent-agent-1
+```
+
+Atau langsung satu baris dari Mac tanpa masuk shell:
+
+```bash
+ssh citi@100.122.56.39 'docker restart lab-brain-agent-agent-1'
+```
+
+### 3. Verifikasi — jangan berhenti di `/health`
+
+`/health` tetap hijau walau Ollama tak terjangkau dan **semua jawaban balik
+kosong** — ini salah satu dari dua kegagalan senyap yang dicatat di
+[docs/DEPLOY.md](docs/DEPLOY.md). Selalu tembak query sungguhan:
+
+```bash
+curl -s http://100.122.56.39:8003/health
+# {"status":"ok","neo4j_connected":true,"read_only":true}
+
+curl -s -w '\n%{time_total}s\n' -X POST http://100.122.56.39:8003/query \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"How many servitization strategies did Neely identify?"}'
+# harap: answer terisi, di bawah 10 detik
+```
+
+Kalau `answer` berisi `"The model did not produce an answer for this query"`,
+container tidak bisa menjangkau Ollama — cek `docker ps | grep ollama` di condor.
+
+Catatan: `passed: false` itu **normal**, bukan gejala restart gagal — lihat
+"Kontrak API untuk Rio" di [docs/DEPLOY.md](docs/DEPLOY.md).
+
+### Kalau mau deploy kode baru (bukan sekadar restart)
+
+`docker restart` memakai image lama. Untuk memuat perubahan kode perlu rebuild,
+dan compose project ada di `/root` sehingga **butuh sudo** (password `citi`):
+
+```bash
+sudo docker compose -f /root/lab-brain-agent/docker-compose.host.yml up -d --build
+```
+
+Dua hal sebelum menjalankan ini: (1) kode di server harus sudah diperbarui lebih
+dulu — repo tidak ada di `~/kg-agent` milik `citi`; (2) `/root/lab-brain-agent`
+bukan direktori kita, condor node-nya Arya. Konfirmasi dulu ke Arya untuk rebuild;
+untuk restart biasa tidak perlu.
+
+### Cara menemukan ulang kalau setup berubah lagi
+
+```bash
+ssh citi@100.122.56.39 '
+  ss -tln | grep 8003                                  # ada yang listen?
+  ps -eo pid,user,cmd | grep "[k]g_agent.api"          # prosesnya apa
+  docker ps --format "{{.Names}}\t{{.Image}}\t{{.Status}}" | grep -i agent
+'
+```
+
 ## Troubleshooting
 
 ### Neo4j `docker compose up` gagal: `JAVA_HOME is not defined` / `pthread_create failed (EPERM)`

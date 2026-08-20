@@ -2,7 +2,16 @@
 
 Pindah ke `citi-condor` (100.122.56.39) supaya kg-agent satu server dengan Rio.
 
-> **STATUS: SELESAI & LIVE per 2026-08-14.** kg-agent jalan sebagai systemd
+> **USANG per 2026-08-19 — jalur systemd di bawah SUDAH TIDAK DIPAKAI.**
+> kg-agent di condor sekarang jalan sebagai container Docker
+> `lab-brain-agent-agent-1` (compose `/root/lab-brain-agent/docker-compose.host.yml`).
+> Unit `kg-agent.service` masih terpasang tapi **disabled & dead**, dan
+> `/home/citi/kg-agent` sudah tidak ada — `systemctl restart kg-agent` tidak
+> me-restart apa pun. Untuk restart/cek, pakai
+> [README → Server produksi (citi-condor)](../README.md#server-produksi-citi-condor--restart--cek).
+> Sisa dokumen ini disimpan sebagai catatan sejarah deploy.
+
+> **STATUS (historis, per 2026-08-14):** kg-agent jalan sebagai systemd
 > service `kg-agent` di condor, `0.0.0.0:8003`, `enabled` (start on boot).
 > Terverifikasi dari luar via `http://100.122.56.39:8003` — lihat "Hasil" di bawah.
 

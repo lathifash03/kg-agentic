@@ -34,10 +34,32 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------- #
 # Tool implementations
 # --------------------------------------------------------------------------- #
-def answer_question(client: Neo4jClient, cfg: Config, *, query: str) -> Dict[str, Any]:
-    """Jawab pertanyaan terhadap KG dengan verifikasi penuh (Phase 4)."""
+def answer_question(
+    client: Neo4jClient,
+    cfg: Config,
+    *,
+    query: str,
+    allow_ungrounded: bool = False,
+    spoken: bool = False,
+) -> Dict[str, Any]:
+    """Jawab pertanyaan terhadap KG dengan verifikasi penuh (Phase 4).
+
+    Parameters
+    ----------
+    allow_ungrounded
+        Opt-in: saat retrieval kosong, isi ``ungrounded_answer`` dengan jawaban
+        tanpa sumber. ``answer``/``passed``/``overall_confidence``/
+        ``sources_used`` tidak tersentuh.
+    spoken
+        Opt-in: isi ``answer_spoken`` (ringkasan untuk TTS). Satu panggilan LLM
+        ekstra, jadi default mati.
+
+    Keduanya SENGAJA tidak muncul di JSON-schema tool (lihat ``TOOLS``).
+    """
     verifier = AgenticVerifier(client, cfg)
-    return verifier.verify(query).to_dict()
+    return verifier.verify(
+        query, allow_ungrounded=allow_ungrounded, spoken=spoken
+    ).to_dict()
 
 
 def ingest_meeting(
@@ -173,6 +195,12 @@ TOOLS: Dict[str, Dict[str, Any]] = {
         "writes": False,
         "description": "Jawab pertanyaan terhadap knowledge graph dengan "
         "verifikasi trust/temporal/faithfulness.",
+        # `allow_ungrounded` dan `spoken` ada di signature Python tapi TIDAK di
+        # schema ini. Schema inilah yang dikirim ke LLM (lihat tool_specs ->
+        # ollama_tool_specs), jadi mencantumkannya berarti model bisa menyalakan
+        # sendiri jawaban tanpa sumber - persis keputusan yang harus tetap di
+        # tangan pemanggil manusia. Yang kedua ikut ditahan karena membebani
+        # satu panggilan LLM tambahan yang tak pernah diminta siapa pun.
         "parameters": {
             "type": "object",
             "properties": {"query": {"type": "string", "description": "Pertanyaan."}},

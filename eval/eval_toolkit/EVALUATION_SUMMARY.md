@@ -6,7 +6,8 @@ gate, **E2** keandalan juri, **E3** ablation kontribusi tiap gate.
 
 ## Ringkasan eksekutif
 
-- **E1 — Gate Correctness: 19/20 (95%), false-pass 0%, false-block 0%** pada profil final.
+- **E1 — Gate Correctness: 15/20 (75%), false-pass 0%, false-block 0%** pada profil final
+  (`ground_truth/e1_aggregate_3runs.json` — median atas tiga run, 16 Agustus 2026).
 - **E2 — Judge Reliability:** hermes3:3b sebagai juri faithfulness **andal, Cohen's κ = 0.833** (near-perfect); proxy leksikal (mock) **tidak andal, κ = 0.167**.
 - **E3 — Ablation:** mematikan verifikasi total → **false-pass 100%**; tiap gate berkontribusi (trust menangkap 8 jawaban buruk, temporal 1).
 - **Dua bug produksi ditemukan & diperbaiki lewat proses evaluasi** (lihat bagian akhir).
@@ -48,24 +49,47 @@ Profil final (Chunk/MENTIONS + vector + parser diperbaiki), 20 pertanyaan:
 | Kategori | Skor | Akurasi |
 |---|---|---|
 | a answerable-good | 6/6 | 100% |
-| b out-of-scope | 6/6 | 100% |
-| c low-trust | 4/5 | 80% |
+| b out-of-scope | 5/6 | 83% |
+| c low-trust | 1/5 | 20% |
 | d temporal-invalid | 3/3 | 100% |
-| **Total** | **19/20** | **95%** |
+| **Total** | **15/20** | **75%** |
 | **False-pass** | **0** | **0%** |
 | **False-block** | **0** | **0%** |
 
-Satu-satunya error (c04) adalah **artefak desain eval** — chunk injeksi
-mengelompok di ruang embedding sehingga satu query-c menarik node temporal
-injeksi (kena label TEMPORAL_FLAGGED, bukan low-trust). Ini **bukan** false-pass.
+Item yang gagal: **b05, c01, c02, c04, c05**. Tidak satu pun berupa false-pass —
+gate tidak pernah meloloskan jawaban buruk; kegagalannya adalah salah-label
+antar-kategori (mis. query-c menarik node temporal injeksi sehingga tertandai
+TEMPORAL_FLAGGED alih-alih low-trust). Dari 20 item, 18 stabil di ketiga run;
+yang tidak stabil `b02` dan `c01`.
+
+> **Riwayat koreksi.** Versi terdahulu dokumen ini mengklaim **19/20 = 95%**
+> dengan "satu-satunya error c04". Klaim itu tidak pernah didukung artefak JSON
+> mana pun: run terbaik yang tercatat (`results_chunk_vector_parsefix.json`,
+> 10 Agustus) adalah 17/20 = 85% dengan **tiga** error (c02, c04, c05). Angka
+> turun lagi ke 15/20 setelah *sentinel fix* (16 Agustus) mengoreksi
+> over-estimasi — sebelumnya sebuah lookup yang gagal bisa mengungguli lookup
+> yang berhasil, sehingga sebagian item tampak benar tanpa dasar yang sah.
+> Karena itu himpunan item yang gagal bergeser antar era. Rincian
+> ketidakcocokan aslinya ada di `docs/PROJECT_SUMMARY.md`, bagian
+> "Masalah yang belum diperbaiki".
+
+**Yang konsisten di seluruh run historis** (0.65, 0.85, maupun 0.75):
+**false-pass 0% dan false-block 0%**. Kesimpulan utama E1 tidak bergantung pada
+angka akurasi overall mana pun.
 
 ### Progresi tiga kondisi (hasil utama)
 
 | Kondisi retrieval | Overall | **False-pass** (bahaya) | False-block |
 |---|---|---|---|
-| Desc/Type (join lewat `Type`) | 85% | **14%** | 0% |
-| Chunk/vector (atribusi presisi) | 80% | **0%** | 15% (bug parser) |
-| **Chunk/vector + parse-fix** | **95%** | **0%** | **0%** |
+| Desc/Type (join lewat `Type`) | 75% | **14%** | 0% |
+| Chunk/vector (atribusi presisi) | 65% | **0%** | 15% (bug parser) |
+| **Chunk/vector + parse-fix** | **85%** | **0%** | **0%** |
+
+Kolom Overall di atas dikoreksi ke nilai artefak (`results.json` 0.75,
+`results_chunk_vector.json` 0.65, `results_chunk_vector_parsefix.json` 0.85).
+Baris terakhir adalah profil yang sama yang kemudian terukur **75%** pasca
+sentinel fix. Kolom false-pass/false-block di tabel ini **belum** diverifikasi
+ulang terhadap artefak — lihat `docs/PROJECT_SUMMARY.md`.
 
 Dua perbaikan (atribusi presisi + fix parser) menghapus semua kesalahan
 berbahaya (false-pass 14% → 0%) **tanpa** menjadikan gate over-konservatif.

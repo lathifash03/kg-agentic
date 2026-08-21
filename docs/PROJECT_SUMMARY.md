@@ -97,17 +97,36 @@ Ini sumber kebingungan paling besar, jadi dipisahkan eksplisit.
 
 **Konsekuensi kritis: seluruh evaluasi lama sudah tidak bisa direproduksi.** Snapshot fingerprint, node injeksi sintetis, dan ground truth 20 pertanyaan di `eval/eval_toolkit/` semuanya menunjuk ke graph yang sudah tidak ada.
 
-### Struktur graph sekarang
+### Struktur graph
+
+Ada DUA graph yang berbeda; angkanya jangan dicampur.
+
+**A. Clone beku 8-paper — dipakai eval & demo** (`bolt://localhost:7687`, dari
+`eval/eval_toolkit/backups/baseline8_scenarioC_2026-08-17.json`):
 
 ```
-Label:  Description 1818 · Topic 1782 · Chunk 816 · Agent 98 · Type 25 · Source 8 · Document 8 · Role 4
-Relasi: MENTIONS 7224 · HAS_TYPE 1598 · HAS_DESCRIPTION 1449 · HAS_SUBTOPIC 1028
-        PART_OF 816 · NEXT 808 · RELATES_TO 36 · HAS_SOURCE 22 · ROLE_IN_PAPER 22
-Index vektor: `vector` (Chunk) · `description_vector` (Description, hanya 322/1818 ter-embed)
-Embedding: mxbai-embed-large, chunk_size 1000, overlap 100
+Node 3.927  ·  Relasi 10.193
+Label:  Topic 1531 · Description 1464 · Chunk 814 · Agent 77 · Type 18 · Source 8 · Document 8 · Role 7
+Document: 8/8 doc_type=paper   ·   Chunk: 814/814 punya filename + embedding
+Topic: confidence_score 0.5 dan source_type=paper pada seluruh 1531 node (stempel default Phase 1)
+Index vektor: `vector` (Chunk.embedding), 1024 dim, COSINE, quantization aktif
 ```
 
-Atribusi per-paper **hanya andal lewat lapisan Chunk** (`Chunk.filename`, 816/816 terisi). Lewat Topic praktis tidak ada — `HAS_SOURCE` hanya menghubungkan 21 dari 1.782 Topic.
+**B. Graph live Wildan/Nabhyla — produksi Condor** (`bolt://100.118.203.111:7690`,
+terus bertambah, BUKAN korpus eval):
+
+```
+Label:  Topic 3157 · Description 3071 · Chunk 1451 · Agent 156 · Type 43 · Document 32
+Document: 8 paper + 14 meeting transcript + 10 fixture (per 20 Agustus 2026)
+Topic: TIDAK punya confidence_score / source_type -> trust jatuh ke default 0.2
+```
+
+Embedding: **`qwen3-embedding:0.6b`** — dipakai produksi (`.env`) MAUPUN demo
+(`.env.demo`). (`.env.thesis`, instance E1/E3 di port 7688, masih memakai
+`mxbai-embed-large`; keduanya 1024 dim.)
+
+Atribusi per-paper **hanya andal lewat lapisan Chunk** (`Chunk.filename`). Lewat
+Topic praktis tidak ada — `HAS_SOURCE` menjangkau segelintir Topic saja.
 
 ---
 
@@ -200,27 +219,34 @@ Ollama yang punya `hermes3:3b` + `mxbai-embed-large` adalah **localhost**, bukan
 
 ## 8. Hasil Level 1 — direct retrieval (D01–D08)
 
+> **Sumber: `eval/paper_suite/results/level1_8paper_clone.json`, 17 Agustus 2026.**
+> Menggantikan `level1.json` (12 Agustus), yang dipakai versi dokumen ini
+> sebelumnya. Angka di bawah direproduksi ulang terhadap clone yang sama pada
+> 21 Agustus 2026 dan cocok persis. `OK` = paper teratas benar DAN evidence ada
+> DAN coverage 1.00; selain itu `XX`.
+
 ```
-OK [D01] want=P1  got=P1:12,P2:3   prec=0.80  evid=Y
-XX [D02] want=P1  got=P1:9, P2:6   prec=0.60  evid=n   <- gagal nyata
-OK [D03] want=P7  got=P7:5         prec=1.00  evid=Y
-OK [D04] want=P7  got=P7:13,P8:2   prec=0.87  evid=Y
-OK [D05] want=P3  got=P3:5         prec=1.00  evid=Y
-OK [D06] want=P4  got=P4:12,P3:3   prec=0.80  evid=Y
-XX [D07] want=P6  got=P5:12,P6:3   prec=0.20  evid=n   <- gagal nyata
-OK [D08] want=P5  got=P5:5         prec=1.00  evid=Y
+OK [D01] want=P1  got=P1:12, P2:3   prec=0.80 cov=1.00 evid=Y
+XX [D02] want=P1  got=P1:11, P2:4   prec=0.73 cov=1.00 evid=n
+XX [D03] want=P7  got=P8:10, P7:5   prec=0.33 cov=1.00 evid=Y   <- paper teratas salah
+XX [D04] want=P7  got=P8:10, P7:5   prec=0.33 cov=1.00 evid=n   <- paper teratas salah
+OK [D05] want=P3  got=P3:5          prec=1.00 cov=1.00 evid=Y
+XX [D06] want=P4  got=P4:11, P3:4   prec=0.73 cov=1.00 evid=n
+XX [D07] want=P6  got=P5:3, P6:2    prec=0.40 cov=1.00 evid=n   <- gagal nyata
+OK [D08] want=P5  got=P5:15         prec=1.00 cov=1.00 evid=Y
 ```
 
 | Metrik | Nilai |
 |---|---|
 | retrieval_hit_rate | **1.00** |
-| top_paper_accuracy | **0.875** (7/8) |
-| mean_chunk_precision | 0.783 |
+| top_paper_accuracy | **0.625** (5/8) |
+| mean_chunk_precision | 0.666 |
 | mean_coverage | 1.00 |
-| evidence_present_rate | 0.75 |
+| evidence_present_rate | 0.50 |
 | forbidden_claims | **0** |
-| mean_faithfulness | 0.694 |
-| gate_passed_rate | 0.00 *(lihat §11)* |
+| mean_faithfulness | 0.755 |
+| gate_passed_rate | **0.875** |
+| mean_trust | 0.485 *(0.47 per 21 Agt — recency meluruh, lihat §11)* |
 
 ### Adjudikasi
 
@@ -234,32 +260,38 @@ OK [D08] want=P5  got=P5:5         prec=1.00  evid=Y
 
 ## 9. Hasil Level 2 — multi-source, comparative, multi-hop
 
+> **Sumber: `eval/paper_suite/results/level2_8paper_clone.json`, 17 Agustus 2026.**
+> Menggantikan `level2.json` (12 Agustus). Direproduksi ulang 21 Agustus 2026
+> terhadap clone yang sama, cocok persis.
+
 ```
-OK [M01] want=P1+P2   got=P1:10,P2:5              prec=1.00  cov=1.00
-OK [M02] want=P3+P4   got=P4:4, P3:1              prec=1.00  cov=1.00
-XX [M03] want=P5+P6   got=P5:3, P8:2              prec=0.60  cov=0.50  <- P6 hilang
-OK [M04] want=P7+P8   got=P7:11,P8:4              prec=1.00  cov=1.00
-OK [C01] want=P1+P2   got=P2:9, P1:6              prec=1.00  cov=1.00
-OK [C02] want=P3+P4   got=P3:8, P4:7              prec=1.00  cov=1.00
-OK [C03] want=P5+P6   got=P5:14,P6:1              prec=1.00  cov=1.00  (timpang 14:1)
-OK [C04] want=P7+P8   got=P7:8, P8:7              prec=1.00  cov=1.00
-XX [C05] want=6 paper got=P7:5,P8:4,P5:2,P2:2,P3:1,P1:1  prec=0.93  cov=0.83  <- P6 hilang
-OK [H01] want=P7      got=P7:14,P8:1              prec=0.93  cov=1.00
-OK [H02] want=P3      got=P3:4, P4:1              prec=0.80  cov=1.00
-OK [H03] want=P5      got=P5:14,P6:1              prec=0.93  cov=1.00
+OK [M01] want=P1+P2   got=P1:11, P2:4          prec=1.00 cov=1.00 evid=Y
+XX [M02] want=P3+P4   got=P4:5                 prec=1.00 cov=0.50 evid=Y   <- P3 hilang
+XX [M03] want=P5+P6   got=P5:5                 prec=1.00 cov=0.50 evid=Y   <- P6 hilang
+OK [M04] want=P7+P8   got=P8:9, P7:6           prec=1.00 cov=1.00 evid=Y
+OK [C01] want=P1+P2   got=P2:8, P1:7           prec=1.00 cov=1.00 evid=Y
+OK [C02] want=P3+P4   got=P3:8, P4:7           prec=1.00 cov=1.00 evid=Y
+XX [C03] want=P5+P6   got=P5:5                 prec=1.00 cov=0.50 evid=Y   <- P6 hilang
+OK [C04] want=P7+P8   got=P8:11, P7:4          prec=1.00 cov=1.00 evid=Y
+XX [C05] want=6 paper got=P8:3, P2:3, P7:1     prec=1.00 cov=0.50 evid=Y   <- 3 dari 6 paper
+XX [H01] want=P7      got=P7:8, P8:7           prec=0.53 cov=1.00 evid=n
+OK [H02] want=P3      got=P3:2                 prec=1.00 cov=1.00 evid=Y
+OK [H03] want=P5      got=P5:14, P6:1          prec=0.93 cov=1.00 evid=Y
 ```
 
 | Metrik | Nilai |
 |---|---|
 | retrieval_hit_rate | **1.00** |
 | top_paper_accuracy | **1.00** |
-| mean_chunk_precision | **0.933** |
-| mean_coverage | **0.944** |
-| evidence_present_rate | 1.00 |
+| mean_chunk_precision | **0.955** |
+| mean_coverage | **0.833** |
+| evidence_present_rate | 0.917 |
 | forbidden_claims | **0** |
-| mean_faithfulness | 0.764 |
+| mean_faithfulness | 0.726 |
+| gate_passed_rate | **0.833** |
+| mean_trust | 0.485 *(0.47 per 21 Agt)* |
 
-L2 justru **lebih baik** dari L1. Pertanyaan komparatif menyebut kedua author sekaligus, sehingga query embedding berada di tengah kedua paper dan menarik keduanya — persis yang diinginkan. C02 (P3:8, P4:7) dan C04 (P7:8, P8:7) hampir seimbang sempurna.
+L2 justru **lebih baik** dari L1 pada `top_paper_accuracy` (1.00 vs 0.625) dan `mean_chunk_precision` (0.955 vs 0.666). Pertanyaan komparatif menyebut kedua author sekaligus, sehingga query embedding berada di tengah kedua paper dan menarik keduanya — persis yang diinginkan. C02 (P3:8, P4:7) dan C04 (P8:11, P7:4) menunjukkan pola itu. Kelemahannya ada di `mean_coverage` (0.833): empat item (M02, M03, C03, C05) hanya menarik satu sisi dari pasangan paper yang diminta.
 
 > **Catatan tentang harness:** penanda `OK`/`XX` per baris awalnya hanya melihat `top_paper_correct` + evidence, belum memasukkan `coverage`, sehingga M03 sempat tercetak `OK` padahal coverage-nya 0.5. Metrik agregat `mean_coverage` tetap benar. Tabel di atas sudah dikoreksi manual.
 

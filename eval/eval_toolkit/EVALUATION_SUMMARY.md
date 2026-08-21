@@ -88,11 +88,20 @@ angka akurasi overall mana pun.
 Kolom Overall di atas dikoreksi ke nilai artefak (`results.json` 0.75,
 `results_chunk_vector.json` 0.65, `results_chunk_vector_parsefix.json` 0.85).
 Baris terakhir adalah profil yang sama yang kemudian terukur **75%** pasca
-sentinel fix. Kolom false-pass/false-block di tabel ini **belum** diverifikasi
-ulang terhadap artefak — lihat `docs/PROJECT_SUMMARY.md`.
+sentinel fix.
+
+> **[BELUM DIVERIFIKASI ULANG — jangan dikutip untuk presentasi]** Kolom
+> **false-pass** dan **false-block** pada tabel di atas (14%, 15%) belum
+> ditelusuri ke artefak. `docs/PROJECT_SUMMARY.md` malah mencatat angka
+> tandingan untuk baris Chunk/vector (false-block 3/6 = 50%), dan tidak satu
+> pun dari keduanya bisa dilacak — menghitungnya butuh rekonstruksi dari
+> per-item run lama. Yang SUDAH terverifikasi dan aman dikutip adalah
+> false-pass 0% / false-block 0% pada **profil final**, yang terbaca langsung
+> dari artefak E1.
 
 Dua perbaikan (atribusi presisi + fix parser) menghapus semua kesalahan
 berbahaya (false-pass 14% → 0%) **tanpa** menjadikan gate over-konservatif.
+*(Angka 14% berasal dari kolom yang ditandai belum terverifikasi di atas.)*
 
 ---
 
@@ -105,7 +114,7 @@ faithfulness 0.7, dibandingkan dengan label konstruksi.
 
 | Juri | Accuracy | **Cohen's κ** | mean faithful | mean unfaithful | gap |
 |---|---|---|---|---|---|
-| **hermes3:3b** | 0.92 | **0.833** | 0.65 | 0.00 | 0.65 |
+| **hermes3:3b** | 0.92 | **0.833** | 0.63 | 0.00 | 0.63 |
 | mock-lexical (proxy) | 0.58 | 0.167 | 0.56 | 0.24 | 0.33 |
 
 **Kesimpulan:** juri LLM (hermes3:3b) **andal** memisahkan jawaban faithful dari
@@ -152,7 +161,8 @@ tepercaya" akan menunjukkan nilainya di benchmark.
    `"faithfulness": 0.8, ...` **tanpa** kurung `{}` → parser gagal → jatuh ke
    0.0 → gate faithfulness menolak jawaban valid (false-block). **Perbaikan:**
    parser toleran (full JSON / tak-berkurung / regex ekstraksi angka). Ini yang
-   mengubah E1 dari false-block 15% → 0%.
+   mengubah E1 dari false-block 15% → 0%. *(15% belum terverifikasi — lihat
+   catatan pada tabel progresi.)*
 
 ---
 

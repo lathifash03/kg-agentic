@@ -14,6 +14,8 @@ survives only as a JSON dump, which is what makes these numbers reproducible:
     eval/eval_toolkit/backups/local_eval_snapshot_2026-08-12.json
     355 nodes · 805 relationships · 116 embedded chunks (mxbai-embed-large)
     20 synthetic injection nodes · trust 0.115-0.858 · all 4 temporal statuses
+    [BELUM TERVERIFIKASI - tidak ditemukan artefak pendukung untuk angka 20
+     maupun rentang trust 0.115-0.858; jangan dikutip sampai ditelusuri ulang]
 
 That dump is **gitignored on purpose**: it carries full chunk text from a third
 party's thesis, and this repository is public. Keep it out of the remote.

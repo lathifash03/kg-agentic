@@ -28,7 +28,7 @@ tanpa urusan firewall. Kredensial di `~/kg-agent/.env`, bukan di sini. Ini yang
 sudah dipakai service condor sejak deploy.
 
 > Catatan historis: node lama `bolt://100.110.179.78:7687` (PC Windows
-> `nigger`, `wildanfauzy4@`) **tidak dipakai lagi**. Dari condor host itu memang
+> `pc-wildan-lama`, `wildanfauzy4@`) **tidak dipakai lagi**. Dari condor host itu memang
 > tak terjangkau di TCP (`tailscale ping` lolos, tapi TCP 7687/7474 di-drop
 > firewall Windows — allow cygnus, belum condor). Karena KG sudah pindah ke
 > cygnus, ini tidak perlu diperbaiki; dicatat hanya supaya tak ada yang mencoba

@@ -138,7 +138,18 @@ Dijalankan terhadap **clone lokal** graph tesis dengan fault injection sintetis,
 - **E2 Judge reliability** — `hermes3:3b` **Cohen's κ = 0.833** (akurasi 0.92) vs proxy leksikal κ = 0.167 → membenarkan pemakaian juri LLM alih-alih heuristik leksikal
 - **E3 Ablation** — trust OFF → false-pass 57% · temporal OFF → 7% · **semua gate OFF → 100%**. Trust adalah pertahanan utama; tanpa verifikasi apa pun seluruh jawaban buruk lolos
 
-### Masalah yang belum diperbaiki
+### Masalah yang belum diperbaiki — ~~terbuka~~ **SELESAI di `820fb50` (21 Agustus 2026)**
+
+> **Status: sudah diperbaiki.** `EVALUATION_SUMMARY.md` kini memakai angka artefak
+> **15/20 = 75%** dari `e1_aggregate_3runs.json` (median tiga run 16 Agustus), bukan lagi
+> 19/20 = 95%. Perlu dicatat: 85% pun sudah usang — sentinel fix (16 Agustus)
+> menurunkan angkanya lagi ke 75%, jadi kolom kanan tabel di bawah adalah artefak
+> per 11 Agustus, bukan angka terkini. Tabel ini dipertahankan sebagai riwayat.
+>
+> Satu sisa yang BELUM diverifikasi: kolom false-pass/false-block pada tabel
+> "Progresi tiga kondisi" (baris historis Desc/Type dan Chunk/vector — mis. baris
+> terakhir tabel di bawah). Itu **tidak menyentuh profil final**, yang false-pass
+> dan false-block 0%-nya terbaca langsung dari artefak.
 
 Angka di `eval/eval_toolkit/EVALUATION_SUMMARY.md` **tidak cocok dengan artefak JSON dari run yang sama**:
 
